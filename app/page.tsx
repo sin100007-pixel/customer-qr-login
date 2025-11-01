@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import ProductPreview from "./product-preview";
+import InstallButton from "./components/InstallButton"; // ← 추가
 
 export default function Page() {
   const [name, setName] = useState("");
@@ -32,7 +33,7 @@ export default function Page() {
     }
   }
 
-  // 👇 공통 스타일: 입력/버튼 모두 동일 폭을 보장
+  // 공통 스타일(입력/버튼 동일 폭)
   const fieldStyle: React.CSSProperties = {
     display: "block",
     width: "100%",
@@ -40,7 +41,7 @@ export default function Page() {
     padding: 10,
     margin: "6px 0 12px",
     borderRadius: 10,
-    border: "1px solid #475569", // 동일 보더 두께로 맞춤
+    border: "1px solid #475569",
   };
 
   const buttonStyle: React.CSSProperties = {
@@ -50,15 +51,18 @@ export default function Page() {
     padding: 12,
     margin: "0 0 12px 0",
     borderRadius: 10,
-    border: "1px solid #475569", // 입력과 동일 보더 두께
+    border: "1px solid #475569",
     background: "#2563eb",
     color: "#fff",
     fontWeight: 600,
+    cursor: "pointer",
   };
 
   return (
     <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>런던마켓으로 로그인</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
+        런던마켓으로 로그인
+      </h1>
 
       <form onSubmit={onSubmit}>
         <label>이름</label>
@@ -79,9 +83,15 @@ export default function Page() {
           style={fieldStyle}
         />
 
+        {/* 로그인 버튼 */}
         <button disabled={loading} type="submit" style={buttonStyle}>
           {loading ? "로그인 중..." : "로그인"}
         </button>
+
+        {/* 로그인 버튼 바로 아래: 설치 버튼(동일 스타일) */}
+        <InstallButton style={{ ...buttonStyle, marginTop: 8 }}>
+          앱 설치
+        </InstallButton>
 
         {error && <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>}
 

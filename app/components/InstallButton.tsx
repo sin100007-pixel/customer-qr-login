@@ -1,7 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export default function InstallButton() {
+type Props = {
+  className?: string;
+  style?: React.CSSProperties;     // ← 추가: inline 스타일 지원
+  children?: React.ReactNode;      // 버튼 라벨 커스텀
+};
+
+export default function InstallButton({
+  className = "",
+  style,
+  children = "앱 설치",
+}: Props) {
   const [deferred, setDeferred] = useState<any>(null);
   const [show, setShow] = useState(false);
 
@@ -19,7 +29,8 @@ export default function InstallButton() {
 
   return (
     <button
-      className="px-4 py-2 rounded-xl bg-black text-white shadow"
+      className={className}
+      style={style}
       onClick={async () => {
         deferred.prompt();
         await deferred.userChoice; // { outcome: 'accepted' | 'dismissed' }
@@ -27,7 +38,7 @@ export default function InstallButton() {
         setShow(false);
       }}
     >
-      앱 설치
+      {children}
     </button>
   );
 }
