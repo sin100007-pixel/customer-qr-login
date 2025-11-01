@@ -2,6 +2,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import SaveName from "@/app/components/SaveName";
 
 export default async function DashboardPage() {
   // 1) 세션 쿠키 읽기
@@ -21,6 +22,8 @@ export default async function DashboardPage() {
   }
 
   return (
+    <>
+      <SaveName name={name} />
     <div style={{ padding: 24 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>{name}님의 QR</h1>
       <img
@@ -33,5 +36,6 @@ export default async function DashboardPage() {
         <a href="/api/logout" style={{ color: "#a5b4fc" }}>로그아웃</a>
       </p>
     </div>
+    </>
   );
 }
