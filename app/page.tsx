@@ -23,11 +23,7 @@ export default function Page() {
       });
 
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body?.message || "로그인 실패");
-      }
-
-      // 로그인 성공 → 대시보드로 이동
+      if (!res.ok) throw new Error(body?.message || "로그인 실패");
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "로그인 실패");
@@ -36,8 +32,32 @@ export default function Page() {
     }
   }
 
+  // 👇 공통 스타일: 입력/버튼 모두 동일 폭을 보장
+  const fieldStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: 10,
+    margin: "6px 0 12px",
+    borderRadius: 10,
+    border: "1px solid #475569", // 동일 보더 두께로 맞춤
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: 12,
+    margin: "0 0 12px 0",
+    borderRadius: 10,
+    border: "1px solid #475569", // 입력과 동일 보더 두께
+    background: "#2563eb",
+    color: "#fff",
+    fontWeight: 600,
+  };
+
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>로그인</h1>
 
       <form onSubmit={onSubmit}>
@@ -47,13 +67,7 @@ export default function Page() {
           onChange={(e) => setName(e.target.value)}
           placeholder="예) 홍길동"
           type="text"
-          style={{
-            display: "block",
-            width: "100%",
-            padding: 10,
-            margin: "6px 0 12px",
-            borderRadius: 8,
-          }}
+          style={fieldStyle}
         />
 
         <label>비밀번호 (전화번호 뒷자리)</label>
@@ -62,33 +76,14 @@ export default function Page() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="예) 1234"
           type="password"
-          style={{
-            display: "block",
-            width: "100%",
-            padding: 10,
-            margin: "6px 0 12px",
-            borderRadius: 8,
-          }}
+          style={fieldStyle}
         />
 
-        <button
-          disabled={loading}
-          type="submit"
-          style={{
-            width: "100%",
-            padding: 12,
-            borderRadius: 10,
-            background: "#2563eb",
-            color: "#fff",
-            fontWeight: 600,
-          }}
-        >
+        <button disabled={loading} type="submit" style={buttonStyle}>
           {loading ? "로그인 중..." : "로그인"}
         </button>
 
-        {error && (
-          <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>
-        )}
+        {error && <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>}
 
         <div
           style={{
@@ -107,7 +102,7 @@ export default function Page() {
         </div>
       </form>
 
-      {/* 👇 로그인 버튼 아래: 상품 미리보기 토글 버튼 */}
+      {/* 로그인 버튼 아래: 상품 미리보기 */}
       <ProductPreview />
     </div>
   );
