@@ -1,35 +1,132 @@
-import type { Metadata } from "next";
-import PWAClient from "./pwa-client";
+"use client";
 
-export const metadata: Metadata = {
-  title: "EGOSE QR",
-  description: "고객 전용 QR 코드 뷰어",
-  themeColor: "#111827",
-  manifest: "/manifest.json",
-  icons: {
-    icon: [{ url: "/icons/icon-192.png", sizes: "192x192" }],
-    apple: [{ url: "/icons/icon-180.png", sizes: "180x180" }],
-  },
-};
+import React, { useState } from "react";
+import ProductPreview from "./product-preview";
+import InstallButton from "./components/InstallButton";
 
-// 컬러 지정 (첫번째/두번째 이미지에 맞춘 값)
-const BG_DARK = "#0F0C2E";   // 아주 어두운 남보라(배경)
-const BTN_BLUE = "#0019C9";  // 진한 로열블루(버튼)
+const BG_DARK = "#0F0C2E";
+const BTN_BLUE = "#0019C9";
+const BTN_BLUE_HOVER = "#1326D9";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function Page() {
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password, remember }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || "로그인 실패");
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      setError(err?.message || "로그인 실패");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: 12,
+    margin: "6px 0 12px",
+    borderRadius: 10,
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#000000",
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    boxSizing: "border-box",
+    padding: 12,
+    margin: "0 0 12px 0",
+    borderRadius: 10,
+    border: "1px solid transparent",
+    background: BTN_BLUE,
+    color: "#ffffff",
+    fontWeight: 700,
+    cursor: "pointer",
+  };
+
   return (
-    <html lang="ko">
-      <body
-        style={{
-          background: BG_DARK, // 배경 = 첫 번째 색
-          color: "#fff",       // 기본 글자 흰색
-          minHeight: "100vh",
-          margin: 0,
-        }}
-      >
-        <PWAClient />
-        {children}
-      </body>
-    </html>
+    <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>
+        런던마켓으로 로그인
+      </h1>
+
+      <form onSubmit={onSubmit}>
+        <label style={{ display: "block", marginTop: 6, marginBottom: 4, color: "#e5e7eb" }}>
+          이름
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="예) 홍길동"
+          type="text"
+          style={fieldStyle}
+        />
+
+        <label style={{ display: "block", marginTop: 6, marginBottom: 4, color: "#e5e7eb" }}>
+          비밀번호 (전화번호 뒷자리)
+        </label>
+        <input
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="예) 1234"
+          type="password"
+          style={fieldStyle}
+        />
+
+        <button
+          disabled={loading}
+          type="submit"
+          style={buttonStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.background = BTN_BLUE_HOVER)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = BTN_BLUE)}
+        >
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
+
+        <InstallButton style={{ ...buttonStyle, marginTop: 8 }}>
+          앱 설치
+        </InstallButton>
+
+        {error && <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            margin: "8px 0 12px",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+          <span>로그인 유지</span>
+        </div>
+      </form>
+
+      <ProductPreview
+        primaryButtonStyle={buttonStyle}
+        primaryButtonHover={BTN_BLUE_HOVER}
+      />
+    </div>
   );
 }
