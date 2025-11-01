@@ -4,6 +4,7 @@ import { useState } from "react";
 export default function Page() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -15,7 +16,7 @@ export default function Page() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify({ name, password, remember }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -55,6 +56,10 @@ export default function Page() {
           {loading ? "로그인 중..." : "로그인"}
         </button>
         {error && <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>}
+      <label style={{ display:"flex", gap:8, alignItems:"center", margin:"6px 0 12px" }}>
+        <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} />
+        로그인 유지 (30일)
+      </label>
       </form>
     </div>
   );

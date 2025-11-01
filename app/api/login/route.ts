@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { name, password } = await req.json();
+    const { name, password, remember } = await req.json();
 
     if (!name || !password) {
       return NextResponse.json({ message: "이름/비밀번호를 입력하세요." }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
     // 3) 응답 + 세션 쿠키
     const res = NextResponse.json({ ok: true });
-    withSessionCookie(res, { uid: user.id, name: user.name });
+    withSessionCookie(res, { uid: user.id, name: user.name }, Boolean(remember));
     return res;
   } catch (e) {
     console.error(e);

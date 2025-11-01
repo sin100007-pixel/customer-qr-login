@@ -3,14 +3,21 @@ import { NextResponse } from "next/server";
 
 type SessionPayload = { uid: string; name: string };
 
-// 응답에 직접 쿠키를 심는다 (Vercel 배포 도메인에서 안전한 기본값)
-export function withSessionCookie(res: NextResponse, payload: SessionPayload) {
+/** 
+ * remember=true  → 30일 유지
+ * remember=false → 12시간 유지
+ */
+export function withSessionCookie(
+  res: NextResponse,
+  payload: SessionPayload,
+  remember: boolean = false
+) {
   res.cookies.set("session_user", encodeURIComponent(payload.name), {
     path: "/",
     httpOnly: true,
     secure: true,
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7일
+    maxAge: remember ? 60 * 60 * 24 * 30 : 60 * 60 * 12,
   });
   return res;
 }
