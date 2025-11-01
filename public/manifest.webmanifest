@@ -1,6 +1,6 @@
 {
-  "name": "Customer QR Login",
-  "short_name": "QR Login",
+  "name": "EGOSE QR CODE",
+  "short_name": "EGOSE QR CODE",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1220",
