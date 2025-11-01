@@ -58,7 +58,7 @@ export default function Page() {
 
   return (
     <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>로그인</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>런던마켓으로 로그인</h1>
 
       <form onSubmit={onSubmit}>
         <label>이름</label>
