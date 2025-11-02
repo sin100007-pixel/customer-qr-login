@@ -2,18 +2,15 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { withRetry } from "@/lib/withRetry";
+import ProductPreview from "@/app/product-preview";
 
-import SaveName from "../components/SaveName";
-import LogoutButton from "../components/LogoutButton";
-import KakaoChatButton from "../components/KakaoChatButton";
-import ProductToggle from "../components/ProductToggle";
-
-// Prisma는 Edge에서 동작하지 않음
+// Prisma는 Edge에서 동작하지 않으므로 Node 런타임으로 고정
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const BTN_BLUE = "#0019C9";
-const BTN_BLUE_HOVER = "#1326D9";
+// 버튼 기본 스타일 (로그아웃/카카오/상품보기 공통)
+const BTN_BG = "#1739f7";
+const BTN_BG_HOVER = "#1f2eea";
 
 const buttonStyle: React.CSSProperties = {
   display: "block",
@@ -23,7 +20,7 @@ const buttonStyle: React.CSSProperties = {
   margin: "0 0 12px 0",
   borderRadius: 12,
   border: "1px solid transparent",
-  background: BTN_BLUE,
+  background: BTN_BG,
   color: "#ffffff",
   fontWeight: 700,
   cursor: "pointer",
@@ -36,54 +33,84 @@ export default async function DashboardPage() {
   if (!sessionCookie) redirect("/");
   const name = decodeURIComponent(sessionCookie.value || "");
 
-  // 2) 사용자 조회 (일시 연결 이슈 시 재시도)
-  const user = await withRetry(
-    () => prisma.user.findFirst({ where: { name } }),
-    { retries: 2, delayMs: 500 }
-  );
+  // 2) 사용자 조회
+  const user = await prisma.user.findFirst({ where: { name } });
   if (!user) redirect("/");
 
   return (
-    <main className="min-h-screen w-full max-w-md mx-auto p-4">
-      <SaveName name={name} />
+    <main
+      style={{
+        maxWidth: 1100,
+        margin: "0 auto",
+        padding: "24px 16px 80px",
+        color: "#fff",
+      }}
+    >
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>{name}님의 QR</h1>
 
-      <header className="mb-6">
-        <h1 className="text-xl font-bold">{name}님의 QR</h1>
-      </header>
-
-      {/* QR */}
-      <div className="flex flex-col items-center">
-        <img
-          src={user.qrUrl}
-          alt="QR"
+      {/* QR + 전화번호 */}
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div
           style={{
             width: 260,
-            height: 260,
-            objectFit: "contain",
-            background: "#111",
             borderRadius: 12,
+            overflow: "hidden",
+            background: "#111",
           }}
-        />
-        <p className="mt-3 opacity-80">전화번호 뒷자리: {user.phoneLast4}</p>
-      </div>
-
-      {/* 액션 버튼 */}
-      <div className="mt-6">
-        <LogoutButton style={buttonStyle} hoverColor={BTN_BLUE_HOVER} label="로그아웃" />
-
-        <div style={{ marginTop: 8 }}>
-          <KakaoChatButton style={buttonStyle} hoverColor={BTN_BLUE_HOVER} label="카카오 채팅문의" />
-        </div>
-
-        {/* ✅ 카카오 채팅문의 아래 → 판매중인 상품 보기 토글 */}
-        <div style={{ marginTop: 8 }}>
-          <ProductToggle
-            buttonStyle={buttonStyle}
-            hoverColor={BTN_BLUE_HOVER}
-            initialOpen={false}
+        >
+          <img
+            src={user.qrUrl}
+            alt="QR"
+            style={{ display: "block", width: "100%", height: "auto" }}
           />
         </div>
+        <div style={{ alignSelf: "center" }}>
+          <p style={{ opacity: 0.9, marginTop: 8 }}>전화번호 뒷자리: {user.phoneLast4}</p>
+        </div>
       </div>
+
+      {/* 버튼 영역 */}
+      <section style={{ marginTop: 24 }}>
+        {/* 로그아웃 */}
+        <form action="/api/logout" method="POST">
+          <button
+            type="submit"
+            style={buttonStyle}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BG_HOVER)
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BG)
+            }
+          >
+            로그아웃
+          </button>
+        </form>
+
+        {/* 카카오 채팅문의 */}
+        <a
+          href="https://pf.kakao.com/_YOUR_CHANNEL" // ← 본인 채널 링크로 교체
+          target="_blank"
+          rel="noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          <button
+            type="button"
+            style={buttonStyle}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BG_HOVER)
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BG)
+            }
+          >
+            카카오 채팅문의
+          </button>
+        </a>
+
+        {/* ✅ 판매중인 상품 보기 토글 (절대경로 이미지) */}
+        <ProductPreview buttonStyle={buttonStyle} hoverColor={BTN_BG_HOVER} />
+      </section>
     </main>
   );
 }

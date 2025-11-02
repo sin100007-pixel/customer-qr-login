@@ -1,67 +1,74 @@
 // app/product-preview.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 
 type Props = {
-  /** (선택) 부모에서 버튼 스타일 통일할 때 사용 */
-  primaryButtonStyle?: React.CSSProperties;
-  /** (선택) 호버 시 바뀔 배경색 */
-  primaryButtonHover?: string;
-  /** 내부 토글 버튼을 보일지 여부 (기본값 true) */
-  showToggle?: boolean;
+  /** 버튼 스타일을 부모와 통일하고 싶을 때 주입 */
+  buttonStyle?: React.CSSProperties;
+  /** 호버 시 바뀔 배경색(선택) */
+  hoverColor?: string;
+  /** 처음부터 열어둘지 여부(선택, 기본 false) */
+  initialOpen?: boolean;
 };
 
-const STATIC_SRC = "/products/preview.jpg"; // ✅ public/products/preview.jpg 를 가리킴
+const IMG_SRC = "/products/preview.jpg"; // ✅ public/products/preview.jpg 절대경로
 
 export default function ProductPreview({
-  primaryButtonStyle,
-  primaryButtonHover = "",
-  showToggle = true,
+  buttonStyle,
+  hoverColor = "",
+  initialOpen = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
-
-  const InternalToggleButton = (
-    <button
-      type="button"
-      style={primaryButtonStyle}
-      onMouseEnter={(e) => {
-        if (primaryButtonHover)
-          (e.currentTarget as HTMLButtonElement).style.background = primaryButtonHover;
-      }}
-      onMouseLeave={(e) => {
-        if (primaryButtonStyle?.background)
-          (e.currentTarget as HTMLButtonElement).style.background =
-            String(primaryButtonStyle.background);
-      }}
-      onClick={() => setOpen((v) => !v)}
-    >
-      {open ? "상품 사진 닫기(확대해서 보세요.)" : "판매중인 상품 보기"}
-    </button>
-  );
+  const [open, setOpen] = useState(initialOpen);
 
   return (
-    <div>
-      {/* 필요할 때만 내부 토글 노출 (부모에서 showToggle={false}로 끌 수 있음) */}
-      {showToggle && InternalToggleButton}
+    <div style={{ width: "100%" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onMouseEnter={(e) => {
+          if (hoverColor) (e.currentTarget as HTMLButtonElement).style.background = hoverColor;
+        }}
+        onMouseLeave={(e) => {
+          if (buttonStyle?.background)
+            (e.currentTarget as HTMLButtonElement).style.background = String(buttonStyle.background);
+        }}
+        style={{
+          display: "block",
+          width: "100%",
+          padding: 12,
+          border: "none",
+          borderRadius: 12,
+          cursor: "pointer",
+          color: "#fff",
+          fontWeight: 700,
+          background: "#1739f7",
+          ...buttonStyle,
+        }}
+      >
+        {open ? "상품 사진 닫기(확대해서 보세요.)" : "판매중인 상품 보기"}
+      </button>
 
       {open && (
-        <div style={{ marginTop: 12, textAlign: "center" }}>
-          <img
-            src={STATIC_SRC}
-            alt="판매중인 상품 미리보기"
+        <>
+          <div
             style={{
-              width: "100%",
-              maxWidth: 720,
-              height: "auto",
+              marginTop: 12,
               borderRadius: 12,
-              display: "inline-block",
+              overflow: "hidden",
+              background: "#111827",
             }}
-          />
+          >
+            <img
+              src={IMG_SRC} // ✅ 대시보드에서도 잘 뜸
+              alt="판매중인 상품 미리보기"
+              style={{ display: "block", width: "100%", height: "auto" }}
+            />
+          </div>
           <p style={{ color: "#ef4444", marginTop: 8, fontSize: 14 }}>
             이미지를 확대 할 수 있습니다.
           </p>
-        </div>
+        </>
       )}
     </div>
   );
