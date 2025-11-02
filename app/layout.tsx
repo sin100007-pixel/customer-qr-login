@@ -1,6 +1,7 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import PWAClient from "./pwa-client";
-
+import SessionHydrator from "./components/SessionHydrator";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -14,21 +15,22 @@ export const metadata: Metadata = {
   description: "고객 전용 QR 코드 뷰어",
   manifest: "/manifest.json",
   icons: {
-    icon: [{ url: "/icons/icon-192.png", sizes: "192x192" }],
-    apple: [{ url: "/icons/icon-180.png", sizes: "180x180" }],
+    // 프로젝트에 존재하는 아이콘들만 사용
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/icons/icon-192.png" }],
   },
 };
 
 const BG_DARK = "#0F0C2E";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="ko">
-      import SessionHydrator from "./components/SessionHydrator";
-
-const BG_DARK = "#0F0C2E";
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ko">
       <body
@@ -39,8 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           margin: 0,
         }}
       >
+        {/* PWA 설치 버튼/힌트 + 세션 자동복구 */}
         <PWAClient />
-                <SessionHydrator />
+        <SessionHydrator />
         {children}
       </body>
     </html>
