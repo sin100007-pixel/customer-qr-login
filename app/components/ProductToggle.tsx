@@ -1,3 +1,4 @@
+// app/components/ProductToggle.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -18,7 +19,7 @@ export default function ProductToggle({
 
   return (
     <div>
-      {/* 토글 버튼 */}
+      {/* 부모 쪽 토글 버튼 */}
       <button
         type="button"
         style={buttonStyle}
@@ -34,11 +35,11 @@ export default function ProductToggle({
         {open ? "상품 사진 닫기(확대해서 보세요.)" : "판매중인 상품 보기"}
       </button>
 
-      {/* 내용 */}
       {open && (
         <div style={{ marginTop: 12 }}>
-          {/* 네 프로젝트의 ProductPreview가 버튼 스타일을 받을 수 있다면 그대로 전달 */}
+          {/* ✅ 내부 토글 숨김(showToggle={false}) */}
           <ProductPreview
+            showToggle={false}
             primaryButtonStyle={buttonStyle}
             primaryButtonHover={hoverColor}
           />
