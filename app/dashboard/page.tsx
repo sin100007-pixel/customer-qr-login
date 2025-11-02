@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   if (!sessionCookie) redirect("/");
   const name = decodeURIComponent(sessionCookie.value || "");
 
-  // 2) 사용자 조회 (일시 연결 이슈시 재시도)
+  // 2) 사용자 조회 (일시 연결 이슈 시 재시도)
   const user = await withRetry(
     () => prisma.user.findFirst({ where: { name } }),
     { retries: 2, delayMs: 500 }
@@ -67,25 +67,15 @@ export default async function DashboardPage() {
         <p className="mt-3 opacity-80">전화번호 뒷자리: {user.phoneLast4}</p>
       </div>
 
-      {/* 액션 버튼 영역 */}
+      {/* 액션 버튼 */}
       <div className="mt-6">
-        {/* 로그아웃 */}
-        <LogoutButton
-          style={buttonStyle}
-          hoverColor={BTN_BLUE_HOVER}
-          label="로그아웃"
-        />
+        <LogoutButton style={buttonStyle} hoverColor={BTN_BLUE_HOVER} label="로그아웃" />
 
-        {/* 카카오 채팅문의 */}
         <div style={{ marginTop: 8 }}>
-          <KakaoChatButton
-            style={buttonStyle}
-            hoverColor={BTN_BLUE_HOVER}
-            label="카카오 채팅문의"
-          />
+          <KakaoChatButton style={buttonStyle} hoverColor={BTN_BLUE_HOVER} label="카카오 채팅문의" />
         </div>
 
-        {/* ✅ 판매중인 상품 보기 (카카오 아래) */}
+        {/* ✅ 카카오 채팅문의 아래 → 판매중인 상품 보기 토글 */}
         <div style={{ marginTop: 8 }}>
           <ProductToggle
             buttonStyle={buttonStyle}

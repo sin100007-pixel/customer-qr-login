@@ -19,7 +19,7 @@ export default function ProductToggle({
 
   return (
     <div>
-      {/* 부모 쪽 토글 버튼 */}
+      {/* 부모 토글 버튼 */}
       <button
         type="button"
         style={buttonStyle}
@@ -35,11 +35,11 @@ export default function ProductToggle({
         {open ? "상품 사진 닫기(확대해서 보세요.)" : "판매중인 상품 보기"}
       </button>
 
+      {/* 열렸을 때만 프리뷰, 내부 토글은 숨김 */}
       {open && (
         <div style={{ marginTop: 12 }}>
-          {/* ✅ 내부 토글 숨김(showToggle={false}) */}
           <ProductPreview
-            showToggle={false}
+            showToggle={false}                 // ✅ 내부 버튼 숨김
             primaryButtonStyle={buttonStyle}
             primaryButtonHover={hoverColor}
           />
