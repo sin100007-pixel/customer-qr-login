@@ -1,10 +1,23 @@
 // app/api/logout/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  // 현재 요청의 도메인 기준으로 루트('/')로 리다이렉트
-  const res = NextResponse.redirect(new URL("/", req.url));
-  // 세션 쿠키 제거
-  res.cookies.set("session", "", { httpOnly: true, maxAge: 0, path: "/" });
+function clearSession() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("session_user", "", {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    maxAge: 0, // 즉시 만료
+  });
   return res;
+}
+
+export async function POST() {
+  return clearSession();
+}
+
+export async function GET() {
+  // 실수로 GET으로 접근해도 안전하게 처리
+  return clearSession();
 }
