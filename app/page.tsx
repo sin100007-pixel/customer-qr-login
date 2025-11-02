@@ -23,10 +23,16 @@ export default function Page() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",                     // ← 쿠키 저장 보장
         body: JSON.stringify({ name, password, remember }),
       });
+
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.message || "로그인 실패");
+
+      // 안전망: 이름을 로컬에도 백업(쿠키가 사라진 환경에서 복구용)
+      try { localStorage.setItem("session_user", encodeURIComponent(name)); } catch {}
+
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "로그인 실패");
@@ -90,6 +96,15 @@ export default function Page() {
           style={fieldStyle}
         />
 
+        <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "8px 0 12px" }}>
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+          <span>로그인 유지</span>
+        </div>
+
         <button
           disabled={loading}
           type="submit"
@@ -105,22 +120,6 @@ export default function Page() {
         </InstallButton>
 
         {error && <p style={{ color: "#fca5a5", marginTop: 8 }}>{error}</p>}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            margin: "8px 0 12px",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-          />
-          <span>로그인 유지</span>
-        </div>
       </form>
 
       <ProductPreview
