@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import SaveName from "../components/SaveName";
 import LogoutButton from "../components/LogoutButton";
 import ProductPreview from "../product-preview";
+import KakaoChatButton from "../components/KakaoChatButton";
 
 // 로그인 페이지와 동일한 컬러/스타일
 const BTN_BLUE = "#0019C9";
@@ -16,7 +17,7 @@ const buttonStyle: React.CSSProperties = {
   boxSizing: "border-box",
   padding: 12,
   margin: "0 0 12px 0",
-  borderRadius: 10,
+  borderRadius: 12,
   border: "1px solid transparent",
   background: BTN_BLUE,
   color: "#ffffff",
@@ -61,12 +62,21 @@ export default async function DashboardPage() {
           전화번호 뒷자리: {user.phoneLast4}
         </p>
 
-        {/* 로그인 버튼과 동일한 크기/모양의 로그아웃 버튼 */}
+        {/* 로그아웃 버튼 (로그인과 동일 크기/모양) */}
         <div style={{ marginTop: 16 }}>
           <LogoutButton style={buttonStyle} hoverColor={BTN_BLUE_HOVER} />
         </div>
 
-        {/* 로그인 페이지와 동일한 스타일의 '판매중인 상품 보기' */}
+        {/* ✅ 카카오 채팅문의 - 로그아웃 바로 아래 (같은 크기/색) */}
+        <div style={{ marginTop: 8 }}>
+          <KakaoChatButton
+            style={buttonStyle}
+            hoverColor={BTN_BLUE_HOVER}
+            label="카카오 채팅문의"
+          />
+        </div>
+
+        {/* 판매중인 상품 보기 토글 (로그인 페이지와 동일 스타일 사용 시 prop 전달) */}
         <div style={{ marginTop: 8 }}>
           <ProductPreview
             primaryButtonStyle={buttonStyle}
