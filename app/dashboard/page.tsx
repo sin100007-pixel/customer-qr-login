@@ -77,7 +77,7 @@ export default async function DashboardPage() {
 
         {/* 카카오 채팅문의 */}
         <a
-          href="https://pf.kakao.com/_YOUR_CHANNEL" // ← 본인 채널 링크로 교체
+          href="http://pf.kakao.com/_IxgdJj/chat" // ← 본인 채널 링크로 교체
           target="_blank"
           rel="noreferrer"
           style={{ textDecoration: "none" }}
