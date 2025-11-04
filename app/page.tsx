@@ -156,7 +156,7 @@ export default function Page() {
           {/* 2) 에러 메시지 (로그인 버튼 바로 아래) */}
           {error && <p style={{ color: "#fca5a5", margin: "6px 0 10px" }}>{error}</p>}
 
-          {/* 3) 앱 설치 버튼 — 로그인 버튼과 동일한 스타일/호버 */}
+          {/* 3) 앱 설치 버튼 — 인앱에선 외부 브라우저 유도 / 일반 브라우저에선 PWA 설치 */}
           <InstallButton
             style={{ ...buttonStyle, marginTop: 8 }}
             onMouseEnter={(e) =>
