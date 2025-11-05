@@ -6,6 +6,8 @@ import Image from "next/image";
 import ProductPreview from "./product-preview";
 // 경로 반영: app/components/InstallButton.tsx
 import InstallButton from "./components/InstallButton";
+// ✅ 상단 여백 컴포넌트
+import TopSpacer from "./components/TopSpacer";
 
 const BG_DARK = "#0F0C2E";
 const BTN_BLUE = "#0019C9";
@@ -74,6 +76,9 @@ export default function Page() {
 
   return (
     <div style={{ background: BG_DARK, minHeight: "100vh" }}>
+      {/* ✅ 앱/PWA 포함 모든 환경에서 상단 얇은 진행선 대비 여백 */}
+      <TopSpacer height={8} />
+
       <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
         {/* 상단 히어로 이미지 (로컬 파일 /public/london-market-hero.png) */}
         <header style={{ width: "100%", marginBottom: 16 }}>
@@ -142,7 +147,7 @@ export default function Page() {
             <span>로그인 유지</span>
           </div>
 
-          {/* 1) 로그인 버튼 */}
+          {/* 로그인 버튼 */}
           <button
             disabled={loading}
             type="submit"
@@ -153,10 +158,10 @@ export default function Page() {
             {loading ? "로그인 중..." : "로그인"}
           </button>
 
-          {/* 2) 에러 메시지 (로그인 버튼 바로 아래) */}
+          {/* 에러 메시지 */}
           {error && <p style={{ color: "#fca5a5", margin: "6px 0 10px" }}>{error}</p>}
 
-          {/* 3) 앱 설치 버튼 — 인앱에선 외부 브라우저 유도 / 일반 브라우저에선 PWA 설치 */}
+          {/* 앱 설치 버튼 */}
           <InstallButton
             style={{ ...buttonStyle, marginTop: 8 }}
             onMouseEnter={(e) =>
@@ -169,7 +174,7 @@ export default function Page() {
             앱 설치
           </InstallButton>
 
-          {/* 4) 카카오 채팅문의 버튼 */}
+          {/* 카카오 채팅문의 */}
           <a
             href="http://pf.kakao.com/_IxgdJj/chat"
             target="_blank"
@@ -185,7 +190,7 @@ export default function Page() {
             카카오 채팅문의
           </a>
 
-          {/* 5) 판매중인 상품 보기 (토글) */}
+          {/* 판매중인 상품 보기 (토글) */}
           <div style={{ marginTop: 12 }}>
             <ProductPreview showToggle />
           </div>
