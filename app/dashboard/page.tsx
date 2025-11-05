@@ -127,6 +127,24 @@ export default async function DashboardPage() {
 
         <ProductToggle />
       </section>
+
+      {/* 회사 정보 푸터 */}
+      <div
+        style={{
+          marginTop: 24,
+          paddingTop: 8,
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          fontSize: 12,
+          lineHeight: "18px",
+          color: "rgba(255,255,255,0.6)",
+          textAlign: "center",
+        }}
+      >
+        <div>이고세(주)</div>
+        <div>경기도 안산시 상록구 안산천서로 237</div>
+        <div>Tel. 031-486-6883</div>
+      </div>
+
     </main>
   );
 }
