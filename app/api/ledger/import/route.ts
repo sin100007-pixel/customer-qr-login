@@ -1,15 +1,14 @@
-// app/api/ledger/import/route.ts
-// CSV/XLSX 업로드 → Supabase 업서트
-// 환경변수(.env / Vercel Env):
-//   NEXT_PUBLIC_SUPABASE_URL=...
-//   SUPABASE_SERVICE_ROLE_KEY=...  // 서버 전용, 클라이언트 노출 금지
+// CSV/XLSX 업로드 → Supabase 업서트 (일보도 허용)
+// 런타임: Node.js 강제 (Web/Edge Crypto의 ByteString 이슈 회피)
+export const runtime = "nodejs";
 
 import "server-only";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { parse as parseCsv } from "csv-parse/sync";
 import * as XLSX from "xlsx";
-import crypto from "node:crypto";
+import { createHash } from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,18 +31,20 @@ const toISO = (v: any) => {
     const base = new Date(Date.UTC(1899,11,30));
     return new Date(base.getTime() + n*86400000).toISOString().slice(0,10);
   }
-  return ""; // 날짜 확실치 않으면 빈 값(필터에서 걸러짐)
+  return "";
 };
+// ⚠️ 해시 생성은 항상 UTF-8 Buffer로!
+function sha1Hex(input: string) {
+  return createHash("sha1").update(Buffer.from(input, "utf-8")).digest("hex");
+}
 
 // ---------- 파일 파서 ----------
 function rowsFromCSV(buf: Buffer): Raw[] {
   return parseCsv(buf, { columns: true, bom: true, skip_empty_lines: true, trim: true });
 }
-
 function rowsFromXLSX(buf: Buffer): Raw[] {
   const wb = XLSX.read(buf, { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  // 헤더가 여러줄일 수 있어서 header:1 로 원시 행렬을 받아와 탐지
   const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
   return detectHeaderAndToObjects(arr);
 }
@@ -61,12 +62,10 @@ const LABELS = {
   desc:   ["적요","비고","내용","메모","품목규격","규격","상세","품명","품목"],
   rowkey: ["erp_row_key","고유키","rowkey","ROWKEY","키"],
 };
-
 const scoreCell = (cell: string, keys: string[]) =>
   keys.some(k => norm(cell).toLowerCase().includes(norm(k).toLowerCase())) ? 1 : 0;
 
 function detectHeaderAndToObjects(table: any[][]): Raw[] {
-  // 위쪽 10행에서 헤더 후보 탐색
   let headerRowIdx = 0, best = -1;
   for (let r = 0; r < Math.min(10, table.length); r++) {
     const row = table[r] || [];
@@ -124,7 +123,7 @@ function detectHeaderAndToObjects(table: any[][]): Raw[] {
       credit:            idx.credit >= 0 ? toNum(r[idx.credit]): 0,
       balance:           idx.balance>= 0 ? toNum(r[idx.balance]):0,
       erp_row_key:       idx.rowkey >= 0 ? norm(r[idx.rowkey]) : "",
-      품명:              undefined, // 일보 보조용(없어도 동작)
+      품명:              undefined,
       규격:              undefined
     });
   }
@@ -137,6 +136,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const file = form.get("file") as File | null;
     const baseDate = String(form.get("base_date") || ""); // YYYY-MM-DD(선택)
+
     if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
 
     const buf = Buffer.from(await file.arrayBuffer());
@@ -150,19 +150,16 @@ export async function POST(req: NextRequest) {
         let tx_date = r.tx_date || r.출고일자 || r.거래일자 || r.매출일자 || r.date || baseDate;
         tx_date = toISO(tx_date);
 
-        // 거래처/코드
         let code = r.erp_customer_code || r.거래처코드 || r.고객코드 || r.코드 || "";
         let nameKor = r.customer_name || r.거래처명 || r.상호 || r.거래처 || "";
 
-        // 전표형이면 문서/행 사용
         const doc_no  = r.doc_no || r.전표번호 || r.문서번호 || "";
         const line_no = r.line_no || r.행번호 || r.라인번호 || r.순번 || "";
 
-        // 일보의 품명/규격/수량/단가/금액을 설명에 녹임(있을 때만)
-        const item = r.품명 || r.품목 || "";
-        const spec = r.규격 || "";
-        const qty  = r.수량 ?? "";
-        const price= r.단가 ?? "";
+        const item   = r.품명 || r.품목 || "";
+        const spec   = r.규격 || "";
+        const qty    = r.수량 ?? "";
+        const price  = r.단가 ?? "";
         const amount = r.매출금액 ?? r.금액 ?? "";
 
         const desc = norm(
@@ -171,24 +168,24 @@ export async function POST(req: NextRequest) {
             .filter(Boolean).join(" ")
         );
 
-        // 금액 보정
         const debit   = toNum(r.debit ?? r.공급가 ?? r.공급가액 ?? r.금액 ?? r.매출금액 ?? amount);
         const credit  = toNum(r.credit ?? r.부가세 ?? r.세액 ?? 0);
         const balance = toNum(r.balance ?? 0);
 
-        // 고유키: 우선 제공된 키 → 전표형 키 → 일보 해시
-        let key = r.erp_row_key || r.rowkey || r.고유키 || "";
+        // 고유키: 제공키 → 전표형 → 일보 해시(UTF-8 기반)
+        let key: string =
+          r.erp_row_key || r.rowkey || r.고유키 || "";
         if (!key) {
           if (doc_no || line_no) {
             key = `${tx_date}|${doc_no}|${line_no}|${code || nameKor}`;
           } else {
-            key = crypto.createHash("sha1").update(
+            key = sha1Hex(
               [tx_date, code || nameKor, item, spec, toNum(qty), toNum(price), toNum(amount)].join("|")
-            ).digest("hex");
+            );
           }
         }
 
-        if (!code && nameKor) code = nameKor; // 코드 없으면 이름으로 대체 허용
+        if (!code && nameKor) code = nameKor;
 
         return {
           erp_customer_code: norm(code),
@@ -199,12 +196,10 @@ export async function POST(req: NextRequest) {
           description: desc,
           debit, credit, balance,
           erp_row_key: norm(key),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
       })
-      // 필수: 날짜 + (코드 or 이름) + 키
       .filter(r => r.tx_date && (r.erp_customer_code || r.customer_name) && r.erp_row_key)
-      // 합계/총계 행 제거
       .filter(r => !/합계|총계/i.test(r.customer_name || "") && !/합계|총계/i.test(r.description || ""));
 
     // 업서트
@@ -214,7 +209,7 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabase
         .from("ledger_entries")
         .upsert(chunk, { onConflict: "erp_row_key" })
-        .select(); // 일부 버전은 인자 1개만 허용
+        .select();
       if (error) throw error;
       upserted += data?.length ?? 0;
     }
