@@ -1,7 +1,8 @@
-// CSV/XLSX 업로드 → Supabase 업서트 (일보 허용)
-// 해시 대신 UTF-8 base64url 키 사용으로 ByteString 에러 회피
-export const runtime = "nodejs";        // 혹시 모를 Edge 기본값 방지
-export const dynamic = "force-dynamic"; // 캐싱 방지
+// CSV/XLSX 업로드 → Supabase 업서트 (일보 허용 + 한글 안전 키)
+// 어디서 실행돼도 안전하도록 Node 런타임 고정 + 수동 base64url 인코딩
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 import "server-only";
 import type { NextRequest } from "next/server";
@@ -33,9 +34,28 @@ const toISO = (v: any) => {
   }
   return "";
 };
-// 안전한 고유키(UTF-8 → base64url)
-function makeKey(input: string) {
-  return Buffer.from(input, "utf-8").toString("base64url");
+
+// 안전한 base64url (UTF-8 → 바이트 → base64url). Buffer 없는 순수 구현.
+function toBase64Url(input: string): string {
+  const bytes = new TextEncoder().encode(input); // UTF-8 바이트
+  // 바이트를 라틴-1 안전 문자열로 변환
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  // 환경별 btoa/Buffer 대응
+  let b64: string;
+  if (typeof btoa === "function") {
+    b64 = btoa(bin);
+  } else {
+    // Node 환경
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Buffer } = require("buffer");
+    b64 = Buffer.from(bytes).toString("base64");
+  }
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function makeKey(parts: Array<string | number>): string {
+  return toBase64Url(parts.map((p) => String(p ?? "")).join("|"));
 }
 
 // ---------- 파일 파서 ----------
@@ -62,7 +82,7 @@ const LABELS = {
   desc:   ["적요","비고","내용","메모","품목규격","규격","상세","품명","품목"],
   rowkey: ["erp_row_key","고유키","rowkey","ROWKEY","키"],
 };
-const matchScore = (cell: string, keys: string[]) =>
+const match = (cell: string, keys: string[]) =>
   keys.some(k => norm(cell).toLowerCase().includes(norm(k).toLowerCase())) ? 1 : 0;
 
 function detectHeaderAndToObjects(table: any[][]): Raw[] {
@@ -70,15 +90,15 @@ function detectHeaderAndToObjects(table: any[][]): Raw[] {
   for (let r = 0; r < Math.min(10, table.length); r++) {
     const row = table[r] || [];
     const s =
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.code),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.name),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.date),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.docno),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.lineno),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.debit),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.credit),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.balance),0) +
-      row.reduce((a,c)=>a+matchScore(String(c??""), LABELS.desc),0);
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.code),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.name),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.date),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.docno),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.lineno),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.debit),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.credit),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.balance),0) +
+      row.reduce((a,c)=>a+match(String(c??""), LABELS.desc),0);
     if (s > best) { best = s; headerRowIdx = r; }
   }
 
@@ -135,7 +155,7 @@ export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const file = form.get("file") as File | null;
-    const baseDate = String(form.get("base_date") || ""); // YYYY-MM-DD(선택)
+    const baseDate = String(form.get("base_date") || "");
 
     if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
 
@@ -146,7 +166,6 @@ export async function POST(req: NextRequest) {
 
     const rows = raw
       .map((r, i) => {
-        // 날짜: 없으면 base_date 사용(일보)
         let tx_date = r.tx_date || r.출고일자 || r.거래일자 || r.매출일자 || r.date || baseDate;
         tx_date = toISO(tx_date);
 
@@ -173,15 +192,12 @@ export async function POST(req: NextRequest) {
         const balance = toNum(r.balance ?? 0);
 
         // 고유키: 제공키 → 전표형 → 일보(base64url)
-        let key: string =
-          r.erp_row_key || r.rowkey || r.고유키 || "";
+        let key: string = r.erp_row_key || r.rowkey || r.고유키 || "";
         if (!key) {
           if (doc_no || line_no) {
-            key = makeKey(`${tx_date}|${doc_no}|${line_no}|${code || nameKor}`);
+            key = makeKey([tx_date, doc_no, line_no, code || nameKor]);
           } else {
-            key = makeKey(
-              [tx_date, code || nameKor, item, spec, toNum(qty), toNum(price), toNum(amount)].join("|")
-            );
+            key = makeKey([tx_date, code || nameKor, item, spec, toNum(qty), toNum(price), toNum(amount)]);
           }
         }
 
