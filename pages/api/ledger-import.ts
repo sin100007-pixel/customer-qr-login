@@ -1,4 +1,3 @@
-// pages/api/ledger-import.ts
 // CSV/XLSX 업로드 → Supabase PostgREST 업서트 (https 모듈 사용)
 // 멀티파트/본문 모두 Buffer 기반 처리 + ENV 값 개행/공백 제거
 
@@ -31,7 +30,7 @@ const toISO = (v: any) => {
   if (/^\d{8}$/.test(t)) return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
   const n = Number(t);
   if (Number.isFinite(n) && n > 20000 && n < 80000) {
-    const base = new Date(Date.UTC(1899, 11, 30));
+    const base = new Date(Date.UTC(1899, 11, 30)); // Excel serial
     return new Date(base.getTime() + n * 86400000).toISOString().slice(0, 10);
   }
   return "";
@@ -108,29 +107,23 @@ function rowsFromXLSX(buf: Buffer): Raw[] {
     desc: ["적요", "비고", "내용", "품명", "품목", "규격"],
   };
   const hit = (h: string, arr: string[]) => arr.some((k) => h.includes(k));
-  let hi = 0,
-    best = -1;
+  let hi = 0, best = -1;
   for (let r = 0; r < Math.min(8, table.length); r++) {
     const row = table[r] || [];
     const score = row.reduce((a: number, c: any) => {
       const h = S(c);
-      return (
-        a +
-        (hit(h, LABELS.code) ? 1 : 0) +
-        (hit(h, LABELS.name) ? 1 : 0) +
-        (hit(h, LABELS.date) ? 1 : 0) +
-        (hit(h, LABELS.doc) ? 1 : 0) +
-        (hit(h, LABELS.line) ? 1 : 0) +
-        (hit(h, LABELS.debit) ? 1 : 0) +
-        (hit(h, LABELS.credit) ? 1 : 0) +
-        (hit(h, LABELS.bal) ? 1 : 0) +
-        (hit(h, LABELS.desc) ? 1 : 0)
-      );
+      return a
+        + (hit(h, LABELS.code) ? 1 : 0)
+        + (hit(h, LABELS.name) ? 1 : 0)
+        + (hit(h, LABELS.date) ? 1 : 0)
+        + (hit(h, LABELS.doc) ? 1 : 0)
+        + (hit(h, LABELS.line) ? 1 : 0)
+        + (hit(h, LABELS.debit) ? 1 : 0)
+        + (hit(h, LABELS.credit) ? 1 : 0)
+        + (hit(h, LABELS.bal) ? 1 : 0)
+        + (hit(h, LABELS.desc) ? 1 : 0);
     }, 0);
-    if (score > best) {
-      best = score;
-      hi = r;
-    }
+    if (score > best) { best = score; hi = r; }
   }
   const headers = (table[hi] || []).map((h) => S(h));
   const rows = table.slice(hi + 1);
@@ -189,11 +182,8 @@ async function upsertViaREST(table: string, rows: any[], onConflict: string) {
     throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
   const url = `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`;
-
-  // 헤더 값은 개행/공백 제거된 값을 사용
   const APIKEY = SERVICE_ROLE;
   const AUTH = `Bearer ${APIKEY}`;
-
   const baseHeaders: Record<string, string> = {
     apikey: APIKEY,
     Authorization: AUTH,
@@ -205,15 +195,10 @@ async function upsertViaREST(table: string, rows: any[], onConflict: string) {
   for (let i = 0; i < rows.length; i += 1000) {
     const chunk = rows.slice(i, i + 1000);
     const body = Buffer.from(JSON.stringify(chunk), "utf8");
-
     const { status, text } = await httpsRequestBuffer(url, "POST", baseHeaders, body);
-    if (status < 200 || status >= 300) {
-      throw new Error(`REST upsert fail (${status}): ${text}`);
-    }
+    if (status < 200 || status >= 300) throw new Error(`REST upsert fail (${status}): ${text}`);
     let data: any = [];
-    try {
-      data = JSON.parse(text);
-    } catch {}
+    try { data = JSON.parse(text); } catch {}
     upserted += Array.isArray(data) ? data.length : 0;
   }
   return upserted;
@@ -230,11 +215,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     stage = "parse-multipart";
     const { file, baseDate } = await parseMultipartByBuffer(req);
-    if (!file) {
-      return res
-        .status(400)
-        .json({ error: "파일이 없습니다.", route: "pages/api/ledger-import", stage });
-    }
+    if (!file) return res.status(400).json({ error: "파일이 없습니다.", route: "pages/api/ledger-import", stage });
 
     stage = "detect-type";
     const isXlsx = file[0] === 0x50 && file[1] === 0x4b;
