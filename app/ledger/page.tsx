@@ -23,14 +23,16 @@ type Row = {
   item_name: string;
   qty: number | null;
   unit_price: number | null;
-  amount: number | null;      // 공급가
-  deposit: number | null;     // 입금액
-  curr_balance: number | null;// 잔액
+  amount: number | null;
+  deposit: number | null;
+  curr_balance: number | null;
   memo?: string | null;
 };
 type ApiResp = { ok: boolean; rows?: Row[]; message?: string };
 
-/* ---------- 인라인 팝오버( i 옆 ) ---------- */
+/* ---------- 말풍선 팝오버 ---------- */
+type Side = "right" | "left" | "mobile";
+
 const InlinePopover: React.FC<{
   anchorEl: HTMLButtonElement | null;
   title: string;
@@ -38,28 +40,49 @@ const InlinePopover: React.FC<{
   onClose: () => void;
 }> = ({ anchorEl, title, content, onClose }) => {
   const [style, setStyle] = useState<React.CSSProperties>({});
+  const [side, setSide] = useState<Side>("right");
 
   useEffect(() => {
     if (!anchorEl) return;
 
     const calc = () => {
+      const isMobile = window.innerWidth <= 480;
+      if (isMobile) {
+        // 📱 모바일: 화면 중앙 카드
+        const w = Math.min(window.innerWidth * 0.92, 420);
+        const h = Math.min(window.innerHeight * 0.6, 360);
+        setStyle({
+          position: "fixed",
+          left: (window.innerWidth - w) / 2,
+          top: Math.max(20, window.innerHeight * 0.18),
+          width: w,
+          height: h,
+          zIndex: 999,
+        });
+        setSide("mobile");
+        return;
+      }
+
+      // 🖥️ 데스크톱: i 옆 말풍선
       const rect = anchorEl.getBoundingClientRect();
-      const pad = 8;
-      const panelWidth = 300;
-      const panelHeight = 180;
+      const pad = 10;
+      const panelWidth = 340;
+      const panelHeight = 220;
 
       // 기본: 오른쪽
       let left = rect.right + pad;
       let top = rect.top + rect.height / 2 - panelHeight / 2;
+      let s: Side = "right";
 
-      // 우측 넘치면 왼쪽
-      if (left + panelWidth > window.innerWidth - 6) {
+      // 우측 넘치면 왼쪽으로
+      if (left + panelWidth > window.innerWidth - 8) {
         left = rect.left - pad - panelWidth;
+        s = "left";
       }
       // 상하 보정
-      if (top < 6) top = 6;
-      if (top + panelHeight > window.innerHeight - 6) {
-        top = window.innerHeight - panelHeight - 6;
+      if (top < 8) top = 8;
+      if (top + panelHeight > window.innerHeight - 8) {
+        top = window.innerHeight - panelHeight - 8;
       }
 
       setStyle({
@@ -70,6 +93,7 @@ const InlinePopover: React.FC<{
         height: panelHeight,
         zIndex: 999,
       });
+      setSide(s);
     };
 
     calc();
@@ -100,25 +124,89 @@ const InlinePopover: React.FC<{
   if (!anchorEl) return null;
 
   return (
-    <div
-      id="inline-popover-panel"
-      style={style}
-      className="rounded-lg shadow-2xl border border-white/80 bg-[#0f1129] text-white overflow-hidden"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className="px-3 py-2 flex items-center justify-between border-b border-white/80">
-        <div className="font-semibold truncate pr-2">{title || "상세"}</div>
-        <button
-          className="px-2 py-0.5 border border-white rounded text-xs hover:bg-white hover:text-[#0b0d21] transition"
-          onClick={onClose}
-        >
-          닫기
-        </button>
+    <>
+      {/* 배경 컨트라스트(살짝 어두운 베일) — 모바일에서 특히 가독성 ↑ */}
+      <div
+        className="fixed inset-0 z-[998] bg-black/20"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        id="inline-popover-panel"
+        style={style}
+        className={`popover-bubble ${side}`}
+        onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="bubble-header">
+          <div className="bubble-title" title={title || "상세"}>
+            {title || "상세"}
+          </div>
+          <button className="bubble-close" onClick={onClose}>닫기</button>
+        </div>
+        <div className="bubble-body">
+          {content}
+        </div>
       </div>
-      <div className="p-3 text-sm leading-relaxed whitespace-pre-wrap break-words h-[calc(180px-40px)] overflow-auto">
-        {content}
-      </div>
-    </div>
+
+      {/* 말풍선 스타일 */}
+      <style jsx>{`
+        .popover-bubble {
+          border-radius: 14px;
+          border: 1px solid #ffffffcc;
+          background: linear-gradient(180deg, #1a1d3a 0%, #0f1129 100%);
+          color: #fff;
+          box-shadow:
+            0 10px 30px rgba(0,0,0,.45),
+            inset 0 1px 0 rgba(255,255,255,.08);
+          overflow: hidden;
+        }
+        .bubble-header {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 8px 10px;
+          background: rgba(255,255,255,.06);
+          border-bottom: 1px solid #ffffff88;
+        }
+        .bubble-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+        .bubble-close {
+          font-size: 12px; padding: 3px 8px; border-radius: 8px;
+          border: 1px solid #fff; background: transparent; color: #fff;
+        }
+        .bubble-close:hover { background:#fff; color:#0b0d21; }
+
+        .bubble-body {
+          padding: 10px;
+          font-size: 13px;
+          line-height: 1.5;
+          white-space: pre-wrap;
+          overflow: auto;
+          height: calc(100% - 40px);
+        }
+
+        /* 말풍선 화살표 */
+        .popover-bubble.right::after,
+        .popover-bubble.left::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 0; height: 0;
+          border: 10px solid transparent;
+        }
+        .popover-bubble.right::after {
+          left: -20px;
+          border-right-color: #1a1d3a; /* 배경과 유사 색 */
+        }
+        .popover-bubble.left::after {
+          right: -20px;
+          border-left-color: #1a1d3a;
+        }
+
+        /* 모바일 카드에서는 화살표 숨김 */
+        .popover-bubble.mobile::after { display: none; }
+      `}</style>
+    </>
   );
 };
 
@@ -128,7 +216,7 @@ export default function LedgerPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // 팝오버: 앵커를 DOM 엘리먼트로 저장(= i가 안열리던 문제 해결)
+  // 팝오버 상태
   const [popover, setPopover] = useState<{
     open: boolean;
     title: string;
@@ -262,14 +350,12 @@ export default function LedgerPage() {
                               setPopover({
                                 open: true,
                                 title: r.item_name || "",
-                                content:
-                                  (r.memo && r.memo.trim()) || r.item_name || "",
+                                content: (r.memo && r.memo.trim()) || r.item_name || "",
                                 anchorEl: e.currentTarget,
                               })
                             }
                             className="ml-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full border border-white text-[11px] hover:bg-white hover:text-[#0b0d21] transition"
-                            title="상세 보기"
-                            aria-label="상세 보기"
+                            title="상세 보기" aria-label="상세 보기"
                           >i</button>
                         )}
                       </div>
@@ -288,7 +374,7 @@ export default function LedgerPage() {
         </table>
       </div>
 
-      {/* 페이지에 단 하나의 팝오버만 렌더 */}
+      {/* 말풍선 팝오버 */}
       {popover.open && (
         <InlinePopover
           anchorEl={popover.anchorEl}
@@ -298,7 +384,7 @@ export default function LedgerPage() {
         />
       )}
 
-      {/* ✅ 표 전용(스코프) 1px 흰색 테두리 + 가운데정렬 */}
+      {/* ✅ 표 전용(스코프) 1px 흰색 테두리 + 가운데정렬 + 모바일 최적화 */}
       <style jsx>{`
         .ledger-table {
           border-collapse: collapse;
@@ -310,8 +396,8 @@ export default function LedgerPage() {
         .ledger-table th,
         .ledger-table td {
           border: 1px solid #ffffff;
-          padding-block: 8px;           /* 기본 행 높이 축소 */
-          padding-inline: 1ch;          /* 좌우 여백 기본값 */
+          padding-block: 8px;
+          padding-inline: 1ch;
           vertical-align: middle;
           white-space: nowrap;
         }
@@ -320,29 +406,22 @@ export default function LedgerPage() {
           font-weight: 700;
         }
 
-        /* 데스크톱 기본 최소폭(스크롤 여유) */
+        /* 데스크톱 기본 최소폭 */
         .ledger-table .col-date { min-width: 96px; }
         .ledger-table .col-name { min-width: 320px; }
         .ledger-table .col-qty  { min-width: 84px; }
 
-        /* 📱 모바일 최적화: 한 화면에 일자·품명·수량이 들어오도록 폭/여백/폰트 축소 */
+        /* 📱 모바일: 일자·품명·수량 한 화면 */
         @media (max-width: 480px) {
           .ledger-table { font-size: 13px; }
           .ledger-table th,
           .ledger-table td {
             padding-block: 6px;
-            padding-inline: 0.6ch;   /* 스페이스 2칸보다 약간 작게 */
+            padding-inline: 0.6ch;
           }
-          /* sticky 해제해서 폭을 더 확보 */
-          .ledger-table th,
-          .ledger-table td { position: static; }
-
-          /* 화면폭 기준으로 세 컬럼이 딱 보이게 폭 배치 */
-          .ledger-table .col-date { width: 22vw; min-width: 64px; }
+          .ledger-table .col-date { width: 22vw; min-width: 60px; }
           .ledger-table .col-name { width: 56vw; min-width: 0; }
-          .ledger-table .col-qty  { width: 22vw; min-width: 56px; }
-
-          /* 품명 말줄임이 더 잘 되도록 */
+          .ledger-table .col-qty  { width: 22vw; min-width: 54px; }
           .ledger-table .col-name .truncate { max-width: 52vw; }
         }
       `}</style>
