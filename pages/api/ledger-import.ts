@@ -134,22 +134,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // baseDate: 필드/쿼리 둘 다 지원, 없으면 오늘
+  // baseDate: 폼/쿼리 둘 다 지원, 없으면 오늘
   const form = formidable({ multiples: false, keepExtensions: true });
-  let fields: formidable.Fields, files: formidable.Files;
+
+  // 👇 타입 충돌 방지를 위해 any 사용 (A안)
+  let fields: any, files: any;
   try {
     [fields, files] = await new Promise((resolve, reject) => {
-      form.parse(req, (err, f, fi) => (err ? reject(err) : resolve([f, fi])));
+      (form as any).parse(req, (err: any, f: any, fi: any) => (err ? reject(err) : resolve([f, fi])));
     });
   } catch (err: any) {
     return res.status(400).json({ error: `폼 파싱 실패: ${err.message}`, stage: "formidable" });
   }
 
   const getField = (k: string) => {
-    const v = (fields as any)[k];
+    const v = fields?.[k];
     return Array.isArray(v) ? v[0] : v;
   };
-
   const q = (k: string) => {
     const v = (req.query as any)[k];
     return Array.isArray(v) ? v[0] : v;
@@ -172,7 +173,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ).padStart(2, "0")}`;
 
   // 파일
-  const fileObj = (files.file || files.upload || files.excel) as formidable.File | formidable.File[] | undefined;
+  const fileObj = (files?.file || files?.upload || files?.excel) as any;
   const fileOne = Array.isArray(fileObj) ? fileObj[0] : fileObj;
   if (!fileOne?.filepath) {
     return res.status(400).json({ error: "업로드 파일을 찾을 수 없습니다.(필드명: file)", stage: "nofile" });
@@ -218,6 +219,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const sample_in: any[] = [];
   const sample_out: any[] = [];
 
+  // 직전 비어있지 않은 거래처/코드 이어받기
+  let lastNonEmptyName = "";
+  let lastNonEmptyCode = "";
+
   dataRows.forEach((r, i) => {
     const joined = r.map((v: any) => str(v)).join("");
     if (!joined) {
@@ -229,29 +234,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const rawDate: any = headerMap.date !== undefined ? r[headerMap.date] : r[0];
 
     const tx_date = toISODate(rawDate, baseDate);
-    const code = str(headerMap.code !== undefined ? r[headerMap.code] : "");
-    const name = str(headerMap.name !== undefined ? r[headerMap.name] : "");
+    let code = str(headerMap.code !== undefined ? r[headerMap.code] : "");
+    let name = str(headerMap.name !== undefined ? r[headerMap.name] : "");
     const item = str(headerMap.item !== undefined ? r[headerMap.item] : "");
     const spec = str(headerMap.spec !== undefined ? r[headerMap.spec] : "");
     const qty = toNumber(headerMap.qty !== undefined ? r[headerMap.qty] : null);
     const unit_price = toNumber(headerMap.unit_price !== undefined ? r[headerMap.unit_price] : null);
+    let amount = toNumber(headerMap.amount !== undefined ? r[headerMap.amount] : null);
     const prev_balance = toNumber(headerMap.prev_balance !== undefined ? r[headerMap.prev_balance] : null);
     const curr_balance = toNumber(headerMap.curr_balance !== undefined ? r[headerMap.curr_balance] : null);
-    const amount = toNumber(headerMap.amount !== undefined ? r[headerMap.amount] : null);
     const memo = str(headerMap.memo !== undefined ? r[headerMap.memo] : "");
 
     if (sample_in.length < 5) sample_in.push(r);
-
-    // 날짜는 필수
     if (!tx_date) {
       rejected.missing_date++;
       return;
     }
 
+    // 거래처/코드 자동 보정: 현재가 비어 있으면 직전 값으로
+    if (!name && lastNonEmptyName) name = lastNonEmptyName;
+    if (!code && lastNonEmptyCode) code = lastNonEmptyCode;
+    if (name) lastNonEmptyName = name;
+    if (code) lastNonEmptyCode = code;
+
+    // amount 자동 계산
+    if (amount == null && qty != null && unit_price != null) {
+      amount = Number((qty * unit_price).toFixed(0));
+    }
+
     const erp_customer_code = makeErpCustomerCode(code, name, i + 1);
 
     const row: any = {
-      tx_date, // YYYY-MM-DD
+      tx_date,
       code: code || null,
       name: name || null,
       item_name: item || null,
@@ -262,7 +276,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       curr_balance,
       amount,
       memo: memo || null,
-      erp_customer_code, // NOT NULL 제약 대응
+      erp_customer_code,
     };
 
     const erp_row_key = makeRowKey({ tx_date, code, item, rowNo: i + 1 });
@@ -285,7 +299,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data, error } = await supabase
       .from("ledger_entries")
       .upsert(chunk, { onConflict: "erp_row_key", ignoreDuplicates: false })
-      .select("erp_row_key"); // ← 실제 영향받은 행 반환
+      .select("erp_row_key"); // 실제 영향받은 행 반환
 
     if (error) {
       return res.status(400).json({
@@ -296,7 +310,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 삽입 + 업데이트된 행 수
     upserted += data?.length ?? 0;
   }
 
