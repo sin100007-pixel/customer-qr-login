@@ -1,18 +1,21 @@
-// pages/api/ledger-import.ts (DEBUG BUILD)
-// CSV/XLSX 업로드 → Supabase 업서트
-// Buffer-only 멀티파트 파서 + 스테이지 로깅으로 원인 즉시 특정
+// pages/api/ledger-import.ts
+// CSV/XLSX 업로드 → Supabase REST(PostgREST)로 직접 업서트
+// Buffer-only 멀티파트 파서 + UTF-8 JSON 전송 (ByteString 경로 완전 회피)
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
 import { parse as parseCsv } from "csv-parse/sync";
 import * as XLSX from "xlsx";
 
 export const config = { api: { bodyParser: false } };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-);
+// ---- ENV (필수) ----
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string; // https://xxxxx.supabase.co
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
+
+if (!SUPABASE_URL || !SERVICE_ROLE) {
+  // 런타임에 친절 메시지
+  console.warn("[ledger-import] env missing: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+}
 
 // ---- utils ----
 type Raw = Record<string, any>;
@@ -32,10 +35,11 @@ const toISO = (v: any) => {
   }
   return "";
 };
+// ASCII-only 고유키
 const keyOf = (parts: Array<string | number>) =>
   encodeURIComponent(parts.map(p => String(p ?? "")).join("|"));
 
-// ---- Buffer-based multipart parser ----
+// ---- Buffer 기반 멀티파트 파서 ----
 async function parseMultipartByBuffer(req: NextApiRequest) {
   const ct = req.headers["content-type"]?.toString() || "";
   const m = ct.match(/boundary=(.*)$/);
@@ -84,10 +88,10 @@ async function parseMultipartByBuffer(req: NextApiRequest) {
     }
   }
 
-  return { file, filename, baseDate, rawCount: parts.length, bodyLen: body.length };
+  return { file, filename, baseDate };
 }
 
-// ---- parsers ----
+// ---- 파일 파서 ----
 function rowsFromXLSX(buf: Buffer): Raw[] {
   const wb = XLSX.read(buf, { type: "buffer" });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -133,6 +137,34 @@ function rowsFromCSV(buf: Buffer): Raw[] {
   return parseCsv(buf, { columns: true, bom: true, skip_empty_lines: true, trim: true });
 }
 
+// ---- REST 업서트 ----
+async function upsertViaREST(table: string, rows: any[], onConflict: string) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`;
+  const headers = {
+    "apikey": SERVICE_ROLE,
+    "Authorization": `Bearer ${SERVICE_ROLE}`,
+    "Content-Type": "application/json",
+    "Prefer": "return=representation,resolution=merge-duplicates"
+  } as Record<string,string>;
+
+  let upserted = 0;
+  for (let i = 0; i < rows.length; i += 1000) {
+    const chunk = rows.slice(i, i + 1000);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(chunk) // UTF-8 JSON (ByteString 경로 없음)
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(()=> "");
+      throw new Error(`REST upsert fail (${res.status}): ${t}`);
+    }
+    const data = await res.json().catch(()=> []);
+    upserted += Array.isArray(data) ? data.length : 0;
+  }
+  return upserted;
+}
+
 // ---- handler ----
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let stage = "start";
@@ -143,17 +175,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     stage = "parse-multipart";
-    const mp = await parseMultipartByBuffer(req);
-    if (!mp.file) {
-      return res.status(400).json({
-        error: "파일이 없습니다.",
-        route: "pages/api/ledger-import",
-        stage, meta: { parts: mp.rawCount, bodyLen: mp.bodyLen }
-      });
-    }
-
-    const file = mp.file;
-    const baseDate = mp.baseDate || "";
+    const { file, baseDate } = await parseMultipartByBuffer(req);
+    if (!file) return res.status(400).json({ error: "파일이 없습니다.", route: "pages/api/ledger-import", stage });
 
     stage = "detect-type";
     const isXlsx = file[0] === 0x50 && file[1] === 0x4B;
@@ -210,17 +233,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .filter(r => r.tx_date && (r.erp_customer_code || r.customer_name) && r.erp_row_key)
     .filter(r => !/합계|총계/.test(r.customer_name || "") && !/합계|총계/.test(r.description || ""));
 
-    stage = "upsert";
-    let upserted = 0;
-    for (let i = 0; i < rows.length; i += 1000) {
-      const chunk = rows.slice(i, i + 1000);
-      const { data, error } = await supabase
-        .from("ledger_entries")
-        .upsert(chunk, { onConflict: "erp_row_key" })
-        .select();
-      if (error) throw error;
-      upserted += data?.length ?? 0;
-    }
+    stage = "upsert-rest";
+    const upserted = await upsertViaREST("ledger_entries", rows, "erp_row_key");
 
     return res.status(200).json({
       ok: true,
@@ -231,10 +245,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       upserted
     });
   } catch (e: any) {
-    return res.status(500).json({
-      error: e?.message || String(e),
-      route: "pages/api/ledger-import",
-      stage
-    });
+    return res.status(500).json({ error: e?.message || String(e), route: "pages/api/ledger-import", stage });
   }
 }
