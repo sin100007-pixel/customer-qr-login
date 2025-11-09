@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [
           "erp_row_key",
           "tx_date",
-          "row_no",                // ✅ 엑셀 원본 순서
+          "row_no", // 엑셀 원본 행 순서
           "erp_customer_code",
           "name",
           "item_name",
@@ -52,11 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { count: "exact" }
       );
 
-    // 기간
+    // 기간 필터
     if (date_from) query = query.gte("tx_date", date_from);
     if (date_to) query = query.lte("tx_date", date_to);
 
-    // 검색
+    // 검색(거래처/코드/품명/규격)
     if (q) {
       query = query.or(
         [
@@ -68,10 +68,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
     }
 
-    // 소계 제거
+    // 소계 행 제거
     query = query.not("name", "ilike", "소계%");
 
-    // ✅ 정렬: 기본은 엑셀 순서(row_no ASC). 없으면 예전 로직.
+    // 정렬: 기본은 엑셀 순서(row_no ASC). 필요 시 예전 정렬 사용 가능.
     if (orderMode === "excel") {
       query = query.order("row_no", { ascending: true, nullsFirst: false });
     } else {
@@ -81,11 +81,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 페이징
     query = query.range(offset, offset + limit - 1);
 
-    const { data, error, count } = await query;
+    const resp = await query;
+    const error = (resp as any).error;
     if (error) throw error;
 
-    // 정규화 & 입금행 표시 유지
-    const rows = (data || []).map((r) => {
+    // 👇 타입 강제: Supabase 타입 추론 이슈 회피
+    const data: any[] = Array.isArray((resp as any).data) ? ((resp as any).data as any[]) : [];
+    const count: number | null = (resp as any).count ?? null;
+
+    // 정규화 & 입금행 표시
+    const rows = (data || []).map((r: any) => {
       const isDepositRow =
         typeof r.item_name === "string" && r.item_name.replace(/\s/g, "").includes("입금");
 
@@ -98,7 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return {
         erp_row_key: r.erp_row_key,
         tx_date: r.tx_date,
-        row_no: r.row_no ?? null, // ✅ 그대로 내려줌(필요 시 화면 디버그용)
+        row_no: r.row_no ?? null, // (디버그/CSV용)
         erp_customer_code: r.erp_customer_code,
         customer_name: r.name,
         item_name: isDepositRow ? null : r.item_name,
@@ -128,10 +133,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { debit: 0, credit: 0, balance: 0 }
     );
 
-    // CSV
+    // CSV 모드
     if (S(req.query.format) === "csv") {
       const header = [
-        "row_no",               // ✅ 엑셀 순서 포함
+        "row_no",
         "tx_date",
         "erp_customer_code",
         "customer_name",
