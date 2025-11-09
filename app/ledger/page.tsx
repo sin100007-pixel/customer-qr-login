@@ -30,81 +30,50 @@ type Row = {
 };
 type ApiResp = { ok: boolean; rows?: Row[]; message?: string };
 
-/* ---------- 말풍선 팝오버 ---------- */
-type Side = "right" | "left" | "mobile";
-
-const InlinePopover: React.FC<{
+/* ---------- 작은 말풍선(항상 i 오른쪽, 넘치면 왼쪽) ---------- */
+const Bubble: React.FC<{
   anchorEl: HTMLButtonElement | null;
   title: string;
   content: string;
   onClose: () => void;
 }> = ({ anchorEl, title, content, onClose }) => {
   const [style, setStyle] = useState<React.CSSProperties>({});
-  const [side, setSide] = useState<Side>("right");
+  const [arrowSide, setArrowSide] = useState<"right" | "left">("right");
 
   useEffect(() => {
     if (!anchorEl) return;
 
     const calc = () => {
-      const isMobile = window.innerWidth <= 480;
-      if (isMobile) {
-        // 📱 모바일: 화면 중앙 카드
-        const w = Math.min(window.innerWidth * 0.92, 420);
-        const h = Math.min(window.innerHeight * 0.6, 360);
-        setStyle({
-          position: "fixed",
-          left: (window.innerWidth - w) / 2,
-          top: Math.max(20, window.innerHeight * 0.18),
-          width: w,
-          height: h,
-          zIndex: 999,
-        });
-        setSide("mobile");
-        return;
-      }
-
-      // 🖥️ 데스크톱: i 옆 말풍선
       const rect = anchorEl.getBoundingClientRect();
-      const pad = 10;
-      const panelWidth = 340;
-      const panelHeight = 220;
+      const pad = 8;
+      const w = 240;   // 더 작게
+      const h = 140;   // 더 작게
 
-      // 기본: 오른쪽
+      // 기본: i 오른쪽
       let left = rect.right + pad;
-      let top = rect.top + rect.height / 2 - panelHeight / 2;
-      let s: Side = "right";
+      let top = rect.top + rect.height / 2 - h / 2;
+      let side: "right" | "left" = "right";
 
-      // 우측 넘치면 왼쪽으로
-      if (left + panelWidth > window.innerWidth - 8) {
-        left = rect.left - pad - panelWidth;
-        s = "left";
+      // 오른쪽이 넘치면 왼쪽으로
+      if (left + w > window.innerWidth - 8) {
+        left = rect.left - pad - w;
+        side = "left";
       }
       // 상하 보정
       if (top < 8) top = 8;
-      if (top + panelHeight > window.innerHeight - 8) {
-        top = window.innerHeight - panelHeight - 8;
+      if (top + h > window.innerHeight - 8) {
+        top = window.innerHeight - h - 8;
       }
 
-      setStyle({
-        position: "fixed",
-        left,
-        top,
-        width: panelWidth,
-        height: panelHeight,
-        zIndex: 999,
-      });
-      setSide(s);
+      setStyle({ position: "fixed", left, top, width: w, height: h, zIndex: 999 });
+      setArrowSide(side);
     };
 
     calc();
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     const onClickAway = (e: MouseEvent) => {
-      const panel = document.getElementById("inline-popover-panel");
-      if (
-        panel &&
-        !panel.contains(e.target as Node) &&
-        !anchorEl.contains(e.target as Node)
-      ) {
+      const panel = document.getElementById("eg-bubble");
+      if (panel && !panel.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
         onClose();
       }
     };
@@ -125,86 +94,46 @@ const InlinePopover: React.FC<{
 
   return (
     <>
-      {/* 배경 컨트라스트(살짝 어두운 베일) — 모바일에서 특히 가독성 ↑ */}
-      <div
-        className="fixed inset-0 z-[998] bg-black/20"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        id="inline-popover-panel"
-        style={style}
-        className={`popover-bubble ${side}`}
-        onMouseDown={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="bubble-header">
-          <div className="bubble-title" title={title || "상세"}>
-            {title || "상세"}
-          </div>
-          <button className="bubble-close" onClick={onClose}>닫기</button>
+      <div className="fixed inset-0 z-[998] bg-black/10" onClick={onClose} aria-hidden="true" />
+      <div id="eg-bubble" style={style} className={`eg-bubble ${arrowSide}`} role="dialog" aria-modal="true">
+        <div className="eg-bubble-head">
+          <div className="eg-bubble-title" title={title || "상세"}>{title || "상세"}</div>
+          <button className="eg-bubble-close" onClick={onClose}>닫기</button>
         </div>
-        <div className="bubble-body">
-          {content}
-        </div>
+        <div className="eg-bubble-body">{content}</div>
       </div>
 
-      {/* 말풍선 스타일 */}
       <style jsx>{`
-        .popover-bubble {
-          border-radius: 14px;
-          border: 1px solid #ffffffcc;
+        .eg-bubble{
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,.9);
           background: linear-gradient(180deg, #1a1d3a 0%, #0f1129 100%);
           color: #fff;
-          box-shadow:
-            0 10px 30px rgba(0,0,0,.45),
-            inset 0 1px 0 rgba(255,255,255,.08);
+          box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
           overflow: hidden;
+          font-size: 12px;
         }
-        .bubble-header {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 8px 10px;
+        .eg-bubble-head{
+          display:flex;align-items:center;justify-content:space-between;
+          padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.6);
           background: rgba(255,255,255,.06);
-          border-bottom: 1px solid #ffffff88;
         }
-        .bubble-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
-        .bubble-close {
-          font-size: 12px; padding: 3px 8px; border-radius: 8px;
-          border: 1px solid #fff; background: transparent; color: #fff;
+        .eg-bubble-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;}
+        .eg-bubble-close{
+          font-size:11px;padding:2px 7px;border-radius:7px;
+          border:1px solid #fff;background:transparent;color:#fff;
         }
-        .bubble-close:hover { background:#fff; color:#0b0d21; }
-
-        .bubble-body {
-          padding: 10px;
-          font-size: 13px;
-          line-height: 1.5;
-          white-space: pre-wrap;
-          overflow: auto;
-          height: calc(100% - 40px);
+        .eg-bubble-close:hover{background:#fff;color:#0b0d21;}
+        .eg-bubble-body{
+          padding:8px;line-height:1.45;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);
         }
-
-        /* 말풍선 화살표 */
-        .popover-bubble.right::after,
-        .popover-bubble.left::after {
-          content: "";
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 0; height: 0;
-          border: 10px solid transparent;
+        /* 화살표 */
+        .eg-bubble.right::after,.eg-bubble.left::after{
+          content:"";position:absolute;top:50%;transform:translateY(-50%);
+          width:0;height:0;border:8px solid transparent;
         }
-        .popover-bubble.right::after {
-          left: -20px;
-          border-right-color: #1a1d3a; /* 배경과 유사 색 */
-        }
-        .popover-bubble.left::after {
-          right: -20px;
-          border-left-color: #1a1d3a;
-        }
-
-        /* 모바일 카드에서는 화살표 숨김 */
-        .popover-bubble.mobile::after { display: none; }
+        .eg-bubble.right::after{left:-16px;border-right-color:#1a1d3a;}
+        .eg-bubble.left::after{right:-16px;border-left-color:#1a1d3a;}
       `}</style>
     </>
   );
@@ -216,8 +145,8 @@ export default function LedgerPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // 팝오버 상태
-  const [popover, setPopover] = useState<{
+  // 말풍선 상태
+  const [bubble, setBubble] = useState<{
     open: boolean;
     title: string;
     content: string;
@@ -255,10 +184,7 @@ export default function LedgerPage() {
       } catch {}
       try {
         const ls = (localStorage.getItem("session_user") || "").trim();
-        if (ls) {
-          setLoginName(ls);
-          return;
-        }
+        if (ls) { setLoginName(ls); return; }
       } catch {}
       setLoginName("");
     };
@@ -268,13 +194,8 @@ export default function LedgerPage() {
   // 데이터 로드
   useEffect(() => {
     const run = async () => {
-      setErr("");
-      setRows([]);
-      if (!loginName) {
-        setLoading(false);
-        setErr("로그인 이름을 확인할 수 없습니다.");
-        return;
-      }
+      setErr(""); setRows([]);
+      if (!loginName) { setLoading(false); setErr("로그인 이름을 확인할 수 없습니다."); return; }
       setLoading(true);
       try {
         const q = encodeURIComponent(loginName);
@@ -296,11 +217,10 @@ export default function LedgerPage() {
     run();
   }, [loginName, date_from, date_to]);
 
-  const isDepositRow = (r: Row) =>
-    (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
+  const isDepositRow = (r: Row) => (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
 
   return (
-    <div className="ledger-wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21" }}>
+    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21" }}>
       <h1 className="text-[24px] md:text-[34px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
 
       <div className="mb-3 text-white/80 text-sm md:text-base">
@@ -309,9 +229,9 @@ export default function LedgerPage() {
         <span className="font-semibold">{ymd(date_to)}</span>
       </div>
 
-      <div className="relative overflow-auto rounded-lg">
-        <table className="ledger-table w-full text-[14px] md:text-[15px] leading-tight">
-          <thead className="bg-[#12132a]">
+      <div className="relative overflow-auto rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]">
+        <table className="ledger w-full text-[14px] md:text-[15px] leading-tight">
+          <thead>
             <tr>
               <th className="col-date">일자</th>
               <th className="col-name">품명</th>
@@ -333,13 +253,10 @@ export default function LedgerPage() {
             ) : (
               rows.map((r, i) => {
                 const shortName = trim7(r.item_name || "");
-                const needInfo =
-                  (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
-
+                const needInfo = (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
                 return (
-                  <tr key={`${r.tx_date}-${i}`} className="bg-[#0b0d21]">
+                  <tr key={`${r.tx_date}-${i}`}>
                     <td className="col-date">{r.tx_date?.slice(5)}</td>
-
                     <td className="col-name">
                       <div className="inline-flex items-center justify-center gap-1 max-w-full">
                         <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
@@ -347,20 +264,19 @@ export default function LedgerPage() {
                           <button
                             type="button"
                             onClick={(e) =>
-                              setPopover({
+                              setBubble({
                                 open: true,
                                 title: r.item_name || "",
                                 content: (r.memo && r.memo.trim()) || r.item_name || "",
                                 anchorEl: e.currentTarget,
                               })
                             }
-                            className="ml-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full border border-white text-[11px] hover:bg-white hover:text-[#0b0d21] transition"
+                            className="ml-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-md border border-white text-[11px] hover:bg-white hover:text-[#0b0d21] transition"
                             title="상세 보기" aria-label="상세 보기"
                           >i</button>
                         )}
                       </div>
                     </td>
-
                     <td className="col-qty">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
                     <td>{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
                     <td>{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
@@ -374,55 +290,59 @@ export default function LedgerPage() {
         </table>
       </div>
 
-      {/* 말풍선 팝오버 */}
-      {popover.open && (
-        <InlinePopover
-          anchorEl={popover.anchorEl}
-          title={popover.title}
-          content={popover.content}
-          onClose={() => setPopover({ open: false, title: "", content: "", anchorEl: null })}
+      {bubble.open && (
+        <Bubble
+          anchorEl={bubble.anchorEl}
+          title={bubble.title}
+          content={bubble.content}
+          onClose={() => setBubble({ open: false, title: "", content: "", anchorEl: null })}
         />
       )}
 
-      {/* ✅ 표 전용(스코프) 1px 흰색 테두리 + 가운데정렬 + 모바일 최적화 */}
+      {/* ✅ 표 스타일: 외곽 흰색 1px + 내부 라인 반투명 + 셀 배경 짙은 남색 통일 */}
       <style jsx>{`
-        .ledger-table {
+        .ledger{
           border-collapse: collapse;
           width: 100%;
           table-layout: auto;
-          border: 1px solid #ffffff;
+          border: 1px solid #ffffff;               /* 외곽선 선명 */
           text-align: center;
+          border-radius: 12px; overflow: hidden;
         }
-        .ledger-table th,
-        .ledger-table td {
-          border: 1px solid #ffffff;
+        thead th{
+          background: #12132a;                      /* 헤더 짙은 남색 */
+          color: #fff;
+          font-weight: 700;
+          border-bottom: 1px solid #ffffff;         /* 헤더 하단선만 선명 */
+        }
+        thead th, tbody td{
           padding-block: 8px;
           padding-inline: 1ch;
-          vertical-align: middle;
           white-space: nowrap;
+          vertical-align: middle;
+          border-right: 1px solid rgba(255,255,255,.4);  /* 내부 수직선: 반투명 */
+          border-bottom: 1px solid rgba(255,255,255,.35);/* 내부 수평선: 반투명 */
         }
-        .ledger-table thead th {
-          border-bottom: 1px solid #ffffff;
-          font-weight: 700;
+        tbody td{
+          background: #0b0d21;                      /* ✅ 모든 데이터 셀 배경 통일 */
+          color: #fff;
         }
+        tbody tr:last-child td{ border-bottom: none; }
+        thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
 
         /* 데스크톱 기본 최소폭 */
-        .ledger-table .col-date { min-width: 96px; }
-        .ledger-table .col-name { min-width: 320px; }
-        .ledger-table .col-qty  { min-width: 84px; }
+        .col-date { min-width: 96px; }
+        .col-name { min-width: 320px; }
+        .col-qty  { min-width: 84px; }
 
         /* 📱 모바일: 일자·품명·수량 한 화면 */
         @media (max-width: 480px) {
-          .ledger-table { font-size: 13px; }
-          .ledger-table th,
-          .ledger-table td {
-            padding-block: 6px;
-            padding-inline: 0.6ch;
-          }
-          .ledger-table .col-date { width: 22vw; min-width: 60px; }
-          .ledger-table .col-name { width: 56vw; min-width: 0; }
-          .ledger-table .col-qty  { width: 22vw; min-width: 54px; }
-          .ledger-table .col-name .truncate { max-width: 52vw; }
+          .ledger { font-size: 13px; }
+          thead th, tbody td { padding-block: 6px; padding-inline: .6ch; }
+          .col-date { width: 22vw; min-width: 60px; }
+          .col-name { width: 56vw; min-width: 0; }
+          .col-qty  { width: 22vw; min-width: 54px; }
+          .col-name .truncate { max-width: 52vw; }
         }
       `}</style>
     </div>
