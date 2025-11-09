@@ -45,8 +45,8 @@ const Bubble: React.FC<{
     const calc = () => {
       const rect = anchorEl.getBoundingClientRect();
       const pad = 8;
-      const w = 240;
-      const h = 140;
+      const w = 240;   // 작게
+      const h = 140;   // 작게
 
       // 기본: i 오른쪽
       let left = rect.right + pad;
@@ -72,7 +72,7 @@ const Bubble: React.FC<{
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     const onClickAway = (e: MouseEvent) => {
       const panel = document.getElementById("eg-bubble");
-      if (panel && !panel.contains(e.target as Node) && !anchorEl!.contains(e.target as Node)) {
+      if (panel && !panel.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
         onClose();
       }
     };
@@ -94,19 +94,37 @@ const Bubble: React.FC<{
   return (
     <>
       {/* 배경 클릭으로 닫기 */}
-      <div className="fixed inset-0 z-[998] bg-black/10" onClick={onClose} aria-hidden="true" />
-      {/* 풍선 자체 클릭으로 닫기 */}
+      <div
+        className="fixed inset-0 z-[998] bg-black/10"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-hidden="true"
+      />
+      {/* 풍선 자체 클릭으로 닫기 (재열림 방지 위해 이벤트 전파 차단) */}
       <div
         id="eg-bubble"
         style={style}
         className={`eg-bubble ${arrowSide}`}
         role="dialog"
         aria-modal="true"
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
       >
         <div className="eg-bubble-head">
           <div className="eg-bubble-title" title={title || "상세"}>{title || "상세"}</div>
-          <button className="eg-bubble-close" onClick={onClose}>닫기</button>
+          <button
+            className="eg-bubble-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+          >
+            닫기
+          </button>
         </div>
         <div className="eg-bubble-body">{content}</div>
       </div>
@@ -119,7 +137,7 @@ const Bubble: React.FC<{
           color: #fff;
           box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
           overflow: hidden;
-          font-size: 12px;
+          font-size: 14px; /* +2px */
         }
         .eg-bubble-head{
           display:flex;align-items:center;justify-content:space-between;
@@ -128,13 +146,14 @@ const Bubble: React.FC<{
         }
         .eg-bubble-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;}
         .eg-bubble-close{
-          font-size:11px;padding:2px 7px;border-radius:7px;
+          font-size:12px;padding:2px 7px;border-radius:7px;
           border:1px solid #fff;background:transparent;color:#fff;
         }
         .eg-bubble-close:hover{background:#fff;color:#0b0d21;}
         .eg-bubble-body{
-          padding:8px;line-height:1.45;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);
+          padding:8px;line-height:1.5;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);
         }
+        /* 화살표 */
         .eg-bubble.right::after,.eg-bubble.left::after{
           content:"";position:absolute;top:50%;transform:translateY(-50%);
           width:0;height:0;border:8px solid transparent;
@@ -230,21 +249,22 @@ export default function LedgerPage() {
   const isDepositRow = (r: Row) => (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
 
   return (
-    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21" }}>
-      <h1 className="text-[24px] md:text-[34px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
+    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
+      {/* 전체 +2px → 기본 16px 기준 18px */}
+      <h1 className="text-[26px] md:text-[36px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
 
-      <div className="mb-3 text-white/80 text-sm md:text-base">
+      <div className="mb-3 text-white/80" style={{ fontSize: 18 }}>
         <span className="mr-2">{loginName || "고객"} 님,</span>
         기간: <span className="font-semibold">{ymd(date_from)}</span> ~{" "}
         <span className="font-semibold">{ymd(date_to)}</span>
       </div>
 
-      {/* 🔒 내부 스크롤 영역 + Sticky Header */}
+      {/* 내부 스크롤 영역 + Sticky Header */}
       <div
         className="relative overflow-auto rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]"
         style={{ maxHeight: "75vh" }}
       >
-        <table className="ledger w-full text-[14px] md:text-[15px] leading-tight">
+        <table className="ledger w-full leading-tight" style={{ fontSize: 16 /* 기존 14 → +2 */ }}>
           <thead className="sticky-head">
             <tr>
               <th style={{ background: HEADER_BLUE, color: "#fff" }} className="col-date">일자</th>
@@ -280,6 +300,8 @@ export default function LedgerPage() {
                           <button
                             type="button"
                             onClick={(e) => {
+                              e.stopPropagation(); // 열자마자 배경/풍선 클릭 핸들러와 충돌 방지
+                              // 같은 행 i를 다시 누르면 닫기(토글)
                               if (bubble.open && bubble.rowId === rowId) {
                                 setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null });
                                 return;
@@ -292,7 +314,7 @@ export default function LedgerPage() {
                                 rowId,
                               });
                             }}
-                            className="ml-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-md border border-white text-[11px] hover:bg-white hover:text-[#0b0d21] transition"
+                            className="ml-0.5 shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white text-[13px] hover:bg-white hover:text-[#0b0d21] transition"
                             title="상세 보기" aria-label="상세 보기"
                           >i</button>
                         )}
@@ -317,7 +339,9 @@ export default function LedgerPage() {
           anchorEl={bubble.anchorEl}
           title={bubble.title}
           content={bubble.content}
-          onClose={() => setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null })}
+          onClose={() =>
+            setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null })
+          }
         />
       )}
 
@@ -335,9 +359,9 @@ export default function LedgerPage() {
         /* Sticky Header */
         .sticky-head th{
           position: sticky;
-          top: 0;                 /* 스크롤해도 상단 고정 */
-          z-index: 5;             /* 본문 위에 보이도록 */
-          box-shadow: 0 2px 0 rgba(255,255,255,.35); /* 살짝 분리감 */
+          top: 0;
+          z-index: 10;
+          box-shadow: 0 2px 0 rgba(255,255,255,.35);
         }
 
         thead th{
@@ -348,8 +372,8 @@ export default function LedgerPage() {
         }
 
         thead th, tbody td{
-          padding-block: 8px;
-          padding-inline: 1ch;
+          padding-block: 10px;  /* +2px */
+          padding-inline: 1.2ch; /* +약간 */
           white-space: nowrap;
           vertical-align: middle;
           border-right: 1px solid rgba(255,255,255,.35);  /* 내부 수직선: 반투명 */
@@ -358,19 +382,19 @@ export default function LedgerPage() {
         thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
 
-        /* 데이터 셀: 짙은 남색 기본 + 짝수행 살짝 밝게(가독성) */
+        /* 본문 줄무늬 */
         tbody tr td{ background: #0b0d21; color: #fff; }
         tbody tr:nth-child(even) td{ background: #101536; }
 
-        /* 최소폭 설정 */
+        /* 컬럼 폭 */
         .col-date { min-width: 96px; }
         .col-name { min-width: 320px; }
         .col-qty  { min-width: 84px; }
 
-        /* 📱 모바일: 일자·품명·수량 한 화면 */
+        /* 📱 모바일 */
         @media (max-width: 480px) {
-          .ledger { font-size: 13px; }
-          thead th, tbody td { padding-block: 6px; padding-inline: .6ch; }
+          .ledger { font-size: 15px; } /* 13→15 (+2px) */
+          thead th, tbody td { padding-block: 8px; padding-inline: .8ch; }
           .col-date { width: 22vw; min-width: 60px; }
           .col-name { width: 56vw; min-width: 0; }
           .col-qty  { width: 22vw; min-width: 54px; }
