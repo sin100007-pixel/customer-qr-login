@@ -1,132 +1,324 @@
-// app/ledger/page.tsx
-import { cookies, headers } from "next/headers";
+"use client";
 
-type Row = {
-  tx_date: string;
-  row_no: number | null;
-  erp_customer_code: string | null;
-  customer_name: string | null;
-  item_name: string | null;
-  spec: string | null;
-  qty: number | null;
-  unit_price: number | null;
-  amount: number | null;
-  prev_balance: number | null;
-  deposit: number | null;
-  curr_balance: number | null;
-  memo: string | null;
-  price?: number | null;
-  debit?: number | null;
-  balance?: number | null;
+import React, { useEffect, useMemo, useState } from "react";
+
+/* ---------- 유틸 ---------- */
+const fmt = (n: number | string | null | undefined) => {
+  if (n === null || n === undefined || n === "") return "";
+  const v = typeof n === "string" ? Number(n) : n;
+  if (Number.isNaN(v)) return "";
+  return v.toLocaleString("ko-KR");
+};
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+
+/** ▷ 7글자 초과시 말줄임 */
+const trim7 = (s: string) => {
+  if (!s) return "";
+  return s.length > 7 ? s.slice(0, 7) + "…" : s;
 };
 
-const fmt = (n: number | null | undefined) => (n == null ? "0" : n.toLocaleString());
-const ymd = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/* ---------- 타입 ---------- */
+type Row = {
+  tx_date: string;
+  item_name: string;
+  qty: number | null;
+  unit_price: number | null;
+  amount: number | null;      // 공급가
+  deposit: number | null;     // 입금액
+  curr_balance: number | null;// 잔액
+  memo?: string | null;
+};
+type ApiResp = { ok: boolean; rows?: Row[]; message?: string };
 
-export default async function LedgerMyPage() {
-  const sessionCookie = cookies().get("session_user");
-  const sessionName = decodeURIComponent(sessionCookie?.value ?? "").trim();
+/* ---------- 인라인 팝오버: i 옆에 붙어서 열림 ---------- */
+const InlinePopover: React.FC<{
+  anchorRef: React.RefObject<HTMLButtonElement>;
+  title: string;
+  content: string;
+  onClose: () => void;
+}> = ({ anchorRef, title, content, onClose }) => {
+  const [style, setStyle] = useState<React.CSSProperties>({});
+  useEffect(() => {
+    const btn = anchorRef.current;
+    if (!btn) return;
 
-  const today = new Date();
-  const from = new Date();
-  from.setMonth(from.getMonth() - 3);
-  const date_from = ymd(from);
-  const date_to = ymd(today);
+    const rect = btn.getBoundingClientRect();
+    const pad = 8;
+    const panelWidth = 320;
+    const panelHeight = 200;
 
-  const h = headers();
-  const proto = h.get("x-forwarded-proto") || "https";
-  const host = h.get("x-forwarded-host") || h.get("host") || "";
-  const base = `${proto}://${host}`;
+    // 기본: 버튼 오른쪽
+    let left = rect.right + pad;
+    let top = rect.top + rect.height / 2 - panelHeight / 2;
 
-  let rows: Row[] = [];
-  let errorMsg = "";
-
-  if (!sessionName) {
-    errorMsg = "로그인 세션이 없습니다.";
-  } else {
-    const apiPath =
-      `/api/ledger-search?order=excel&limit=2000` +
-      `&date_from=${encodeURIComponent(date_from)}` +
-      `&date_to=${encodeURIComponent(date_to)}` +
-      `&q=${encodeURIComponent(sessionName)}`;
-
-    try {
-      const resp = await fetch(`${base}${apiPath}`, { cache: "no-store" });
-      if (!resp.ok) {
-        const t = await resp.text();
-        errorMsg = `조회 실패: ${resp.status} ${t}`;
-      } else {
-        const json = await resp.json();
-        rows = (json?.rows ?? []) as Row[];
-      }
-    } catch (e: any) {
-      errorMsg = String(e?.message || e);
+    // 화면 우측으로 넘치면 왼쪽에 붙이기
+    if (left + panelWidth > window.innerWidth - 6) {
+      left = rect.left - pad - panelWidth;
     }
-  }
+    // 상하 보정
+    if (top < 6) top = 6;
+    if (top + panelHeight > window.innerHeight - 6) {
+      top = window.innerHeight - panelHeight - 6;
+    }
+
+    setStyle({
+      position: "fixed",
+      left,
+      top,
+      width: panelWidth,
+      height: panelHeight,
+      zIndex: 999,
+    });
+
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onClickAway = (e: MouseEvent) => {
+      if (btn && !btn.contains(e.target as Node)) {
+        // 패널 영역 외부 클릭 시 닫기 (패널 자체는 내부에서 버블 중단)
+        const panel = document.getElementById("inline-popover-panel");
+        if (panel && !panel.contains(e.target as Node)) onClose();
+      }
+    };
+    window.addEventListener("keydown", onEsc);
+    window.addEventListener("mousedown", onClickAway);
+    return () => {
+      window.removeEventListener("keydown", onEsc);
+      window.removeEventListener("mousedown", onClickAway);
+    };
+  }, [anchorRef, onClose]);
 
   return (
-    <main className="p-6 text-white">
-      <h1 className="text-3xl font-extrabold mb-4 text-center">내 거래 내역 (최근 3개월)</h1>
+    <div
+      id="inline-popover-panel"
+      style={style}
+      className="rounded-lg shadow-2xl border border-white/80 bg-[#0f1129] text-white overflow-hidden"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 py-2 flex items-center justify-between border-b border-white/80">
+        <div className="font-semibold truncate pr-2">{title || "상세"}</div>
+        <button
+          className="px-2 py-0.5 border border-white rounded text-xs hover:bg-white hover:text-[#0b0d21] transition"
+          onClick={onClose}
+        >
+          닫기
+        </button>
+      </div>
+      <div className="p-3 text-sm leading-relaxed whitespace-pre-wrap break-words h-[calc(200px-40px)] overflow-auto">
+        {content}
+      </div>
+    </div>
+  );
+};
 
-      <p className="mb-4 text-center">
-        {sessionName ? `${sessionName} 님, 기간: ${date_from} ~ ${date_to}` : "로그인 필요"}
-      </p>
+/* ---------- 페이지 ---------- */
+export default function LedgerPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-      {errorMsg ? (
-        <p className="text-red-400">{errorMsg}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-center">최근 3개월 거래가 없습니다.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          {/* 표 전체에 흰색 가로/세로 선 + 중앙정렬 */}
-          <table className="w-full text-sm border-collapse table-fixed">
-            <thead className="bg-gray-900/50">
-              <tr className="text-gray-100">
-                {["일자", "품명", "수량", "단가", "공급가", "입금액", "잔액"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-3 py-2 text-center border border-white/40"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => {
-                const isDeposit = r.item_name == null && (r.deposit ?? 0) > 0;
-                const desc = isDeposit ? "입금" : r.item_name || r.memo || "";
+  // 팝오버 상태 (i 옆)
+  const [popover, setPopover] = useState<{
+    open: boolean;
+    title: string;
+    content: string;
+    anchor: React.RefObject<HTMLButtonElement> | null;
+  }>({ open: false, title: "", content: "", anchor: null });
+
+  // 기간: 최근 3개월
+  const date_to = useMemo(() => new Date(), []);
+  const date_from = useMemo(() => {
+    const d = new Date(date_to);
+    d.setMonth(d.getMonth() - 3);
+    return d;
+  }, [date_to]);
+
+  const [loginName, setLoginName] = useState("");
+
+  // 로그인 이름 확보
+  useEffect(() => {
+    const getName = async () => {
+      const usp = new URLSearchParams(window.location.search);
+      const urlName = (usp.get("name") || "").trim();
+      if (urlName) {
+        setLoginName(urlName);
+        try { localStorage.setItem("session_user", urlName); } catch {}
+        return;
+      }
+      try {
+        const r = await fetch("/api/whoami", { cache: "no-store" });
+        const d = await r.json();
+        if (d?.name) {
+          setLoginName(d.name);
+          try { localStorage.setItem("session_user", d.name); } catch {}
+          return;
+        }
+      } catch {}
+      try {
+        const ls = (localStorage.getItem("session_user") || "").trim();
+        if (ls) {
+          setLoginName(ls);
+          return;
+        }
+      } catch {}
+      setLoginName("");
+    };
+    getName();
+  }, []);
+
+  // 데이터 로드
+  useEffect(() => {
+    const run = async () => {
+      setErr("");
+      setRows([]);
+      if (!loginName) {
+        setLoading(false);
+        setErr("로그인 이름을 확인할 수 없습니다.");
+        return;
+      }
+      setLoading(true);
+      try {
+        const q = encodeURIComponent(loginName);
+        const url =
+          `/api/ledger-search?order=excel&limit=2000` +
+          `&date_from=${ymd(date_from)}` +
+          `&date_to=${ymd(date_to)}` +
+          `&q=${q}`;
+        const r = await fetch(url, { cache: "no-store" });
+        const data: ApiResp = await r.json();
+        if (!data.ok) throw new Error(data.message || "불러오기 실패");
+        setRows(data.rows || []);
+      } catch (e: any) {
+        setErr(e?.message || "에러가 발생했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [loginName, date_from, date_to]);
+
+  const isDepositRow = (r: Row) =>
+    (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
+
+  return (
+    <div className="ledger-wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21" }}>
+      <h1 className="text-[28px] md:text-[34px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
+
+      <div className="mb-4 text-white/80">
+        <span className="mr-2">{loginName || "고객"} 님,</span>
+        기간: <span className="font-semibold">{ymd(date_from)}</span> ~{" "}
+        <span className="font-semibold">{ymd(date_to)}</span>
+      </div>
+
+      <div className="overflow-auto rounded-lg">
+        <table className="ledger-table min-w-[1200px] w-full text-[15px] leading-tight">
+          <thead className="bg-[#12132a]">
+            <tr>
+              <th style={{minWidth:96}}>일자</th>
+              <th style={{minWidth:360}}>품명</th>
+              <th style={{minWidth:96}}>수량</th>
+              <th>단가</th>
+              <th>공급가</th>
+              <th>입금액</th>
+              <th>잔액</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr><td className="py-4" colSpan={7}>불러오는 중…</td></tr>
+            ) : err ? (
+              <tr><td className="py-4 text-red-300" colSpan={7}>{err}</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td className="py-6 text-white/80" colSpan={7}>표시할 내역이 없습니다.</td></tr>
+            ) : (
+              rows.map((r, i) => {
+                const shortName = trim7(r.item_name || "");
+                const needInfo = (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
+                const btnRef = React.createRef<HTMLButtonElement>();
+
                 return (
-                  <tr key={`${r.tx_date}-${i}`} className="odd:bg-gray-900/20">
-                    <td className="px-3 py-2 text-center border border-white/20 whitespace-nowrap">
-                      {r.tx_date}
+                  <tr key={`${r.tx_date}-${i}`} className="bg-[#0b0d21]">
+                    <td>{r.tx_date?.slice(5)}</td>
+
+                    <td>
+                      <div className="inline-flex items-center justify-center gap-2 max-w-full">
+                        <span className="truncate max-w-[260px]">{shortName}</span>
+                        {needInfo && (
+                          <>
+                            <button
+                              ref={btnRef}
+                              type="button"
+                              onClick={() =>
+                                setPopover({
+                                  open: true,
+                                  title: r.item_name || "",
+                                  content: (r.memo && r.memo.trim()) || r.item_name || "",
+                                  anchor: btnRef,
+                                })
+                              }
+                              className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full border border-white text-[11px] hover:bg-white hover:text-[#0b0d21] transition"
+                              title="상세 보기"
+                              aria-label="상세 보기"
+                            >i</button>
+                            {popover.open && popover.anchor === btnRef && (
+                              <InlinePopover
+                                anchorRef={btnRef}
+                                title={popover.title}
+                                content={popover.content}
+                                onClose={() =>
+                                  setPopover({ open: false, title: "", content: "", anchor: null })
+                                }
+                              />
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {desc}
-                    </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {!isDeposit ? (r.qty ?? "") : ""}
-                    </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {!isDeposit ? fmt(r.unit_price) : ""}
-                    </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {!isDeposit ? fmt(r.amount) : "0"}
-                    </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {fmt(r.deposit)}
-                    </td>
-                    <td className="px-3 py-2 text-center border border-white/20">
-                      {fmt(r.curr_balance)}
-                    </td>
+
+                    <td>{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
+                    <td>{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
+                    <td>{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
+                    <td>{fmt(r.deposit)}</td>
+                    <td>{fmt(r.curr_balance)}</td>
                   </tr>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ✅ 표 전용(스코프) 1px 흰색 테두리 + 가운데정렬 + 좌우여백 2ch */}
+      <style jsx>{`
+        .ledger-table {
+          border-collapse: collapse;
+          width: 100%;
+          table-layout: auto;
+          border: 1px solid #ffffff;
+          text-align: center;                 /* 전체 가운데 정렬 */
+        }
+        .ledger-table th,
+        .ledger-table td {
+          border: 1px solid #ffffff;
+          padding-block: 10px;                /* 위/아래 */
+          padding-inline: 2ch;                /* 좌우 여백 = 스페이스 2칸 정도 */
+          vertical-align: middle;
+          white-space: nowrap;
+        }
+        .ledger-table thead th {
+          border-bottom: 1px solid #ffffff;
+          font-weight: 700;
+        }
+        /* 내용이 긴 품명은 셀 안에서만 줄임 처리 */
+        .ledger-table td:nth-child(2) > div > span.truncate {
+          display: inline-block;
+        }
+        @media (max-width: 480px) {
+          .ledger-table { min-width: 720px; }
+        }
+      `}</style>
+    </div>
   );
 }
