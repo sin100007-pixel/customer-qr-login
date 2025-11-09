@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import DangerZone from "./DangerZone"; // ⬅️ 추가
 
 type Row = {
   tx_date: string; erp_customer_code: string; customer_name: string;
@@ -126,6 +127,9 @@ export default function LedgerDashboardPage() {
         <button onClick={()=>fetchData(Math.min(pages, page+1))} disabled={page>=pages||loading} className="rounded-md bg-white/10 hover:bg-white/20 px-3 py-1 disabled:opacity-40">다음</button>
         <div className="ml-auto opacity-70 text-xs">정렬: 일자 ↓, 전표↑, 라인↑</div>
       </div>
+
+      {/* ⬇️ 삭제 버튼 섹션 추가 */}
+      <DangerZone />
     </div>
   );
 }
