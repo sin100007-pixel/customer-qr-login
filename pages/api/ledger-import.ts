@@ -1,10 +1,12 @@
 // pages/api/ledger-import.ts
-// CSV/XLSX 업로드 → Supabase REST(PostgREST) 직접 업서트
-// 멀티파트/본문 모두 Buffer 기반 처리(문자열 ByteString 경로 완전 차단)
+// CSV/XLSX 업로드 → Supabase PostgREST 직접 업서트 (https 모듈 사용)
+// 전체 경로 UTF-8 바이트 전송: ByteString 이슈 완전 차단
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { parse as parseCsv } from "csv-parse/sync";
 import * as XLSX from "xlsx";
+import * as https from "https";
+import { URL } from "url";
 
 export const config = { api: { bodyParser: false } };
 
@@ -30,7 +32,6 @@ const toISO = (v: any) => {
   }
   return "";
 };
-// ASCII-only 고유키
 const keyOf = (parts: Array<string | number>) =>
   encodeURIComponent(parts.map((p) => String(p ?? "")).join("|"));
 
@@ -142,12 +143,42 @@ function rowsFromCSV(buf: Buffer): Raw[] {
   return parseCsv(buf, { columns: true, bom: true, skip_empty_lines: true, trim: true });
 }
 
-// ===== REST 업서트 (Buffer 본문) =====
+// ===== https.request 유틸 =====
+function httpsRequestBuffer(urlStr: string, method: string, headers: Record<string, string>, body?: Buffer): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    try {
+      const u = new URL(urlStr);
+      const options: https.RequestOptions = {
+        method,
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        headers: {
+          ...headers,
+          "Content-Length": body ? Buffer.byteLength(body) : 0,
+        },
+      };
+      const req = https.request(options, (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (d) => chunks.push(d as Buffer));
+        res.on("end", () => {
+          const buf = Buffer.concat(chunks);
+          resolve({ status: res.statusCode || 0, text: buf.toString("utf8") });
+        });
+      });
+      req.on("error", reject);
+      if (body && body.length) req.write(body);
+      req.end();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+// ===== REST 업서트 (https 모듈 + Buffer 본문) =====
 async function upsertViaREST(table: string, rows: any[], onConflict: string) {
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
-
   const url = `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`;
   const headers = {
     apikey: SERVICE_ROLE,
@@ -159,20 +190,14 @@ async function upsertViaREST(table: string, rows: any[], onConflict: string) {
   let upserted = 0;
   for (let i = 0; i < rows.length; i += 1000) {
     const chunk = rows.slice(i, i + 1000);
-    // ⚠️ 문자열 대신 UTF-8 바이트로 보낸다 (ByteString 경로 차단)
-    const bodyBytes = Buffer.from(JSON.stringify(chunk), "utf8");
+    const body = Buffer.from(JSON.stringify(chunk), "utf8");
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: bodyBytes,
-    });
-
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`REST upsert fail (${res.status}): ${t}`);
+    const { status, text } = await httpsRequestBuffer(url, "POST", headers, body);
+    if (status < 200 || status >= 300) {
+      throw new Error(`REST upsert fail (${status}): ${text}`);
     }
-    const data = await res.json().catch(() => []);
+    let data: any = [];
+    try { data = JSON.parse(text); } catch {}
     upserted += Array.isArray(data) ? data.length : 0;
   }
   return upserted;
@@ -190,13 +215,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     stage = "parse-multipart";
     const { file, baseDate } = await parseMultipartByBuffer(req);
     if (!file) {
-      return res
-        .status(400)
-        .json({ error: "파일이 없습니다.", route: "pages/api/ledger-import", stage });
+      return res.status(400).json({ error: "파일이 없습니다.", route: "pages/api/ledger-import", stage });
     }
 
     stage = "detect-type";
-    const isXlsx = file[0] === 0x50 && file[1] === 0x4b;
+    const isXlsx = file[0] === 0x50 && file[1] === 0x4B;
 
     stage = isXlsx ? "parse-xlsx" : "parse-csv";
     const raw = isXlsx ? rowsFromXLSX(file) : rowsFromCSV(file);
@@ -242,9 +265,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             (r as any).적요 ||
             (r as any).비고 ||
             (r as any).내용 ||
-            [item, spec, qty && `x${qty}`, price && `@${price}`, amt && `=${amt}`]
-              .filter(Boolean)
-              .join(" ")
+            [item, spec, qty && `x${qty}`, price && `@${price}`, amt && `=${amt}`].filter(Boolean).join(" ")
         );
 
         const debit = N(
@@ -258,8 +279,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const credit = N((r as any).credit ?? (r as any).부가세 ?? (r as any).세액 ?? 0);
         const balance = N((r as any).balance ?? 0);
 
-        let key: string =
-          (r as any).erp_row_key || (r as any).rowkey || (r as any).고유키 || "";
+        let key: string = (r as any).erp_row_key || (r as any).rowkey || (r as any).고유키 || "";
         if (!key) {
           key =
             doc || line
@@ -283,10 +303,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         };
       })
       .filter((r) => r.tx_date && (r.erp_customer_code || r.customer_name) && r.erp_row_key)
-      .filter(
-        (r) =>
-          !/합계|총계/.test(r.customer_name || "") && !/합계|총계/.test(r.description || "")
-      );
+      .filter((r) => !/합계|총계/.test(r.customer_name || "") && !/합계|총계/.test(r.description || ""));
 
     stage = "upsert-rest";
     const upserted = await upsertViaREST("ledger_entries", rows, "erp_row_key");
@@ -295,10 +312,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .status(200)
       .json({ ok: true, route: "pages/api/ledger-import", stage: "done", total: raw.length, valid: rows.length, upserted });
   } catch (e: any) {
-    return res
-      .status(500)
-      .json({ error: e?.message || String(e), route: "pages/api/ledger-import", stage });
+    return res.status(500).json({ error: e?.message || String(e), route: "pages/api/ledger-import", stage });
   }
 }
-
-
