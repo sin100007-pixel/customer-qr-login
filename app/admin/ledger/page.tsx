@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DangerZone from "./DangerZone";
 
-/** 유틸: 숫자 파싱(콤마/공백 제거) */
+/* 숫자 파싱(콤마/공백 제거) */
 function toNum(v: any): number | null {
   if (v === null || v === undefined || v === "") return null;
   const s = String(v).replace(/[, ]+/g, "");
@@ -11,28 +11,46 @@ function toNum(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** 유틸: 여러 후보 키 중 첫 값 반환 */
-function pick<T = any>(obj: any, keys: string[], map?: (x: any) => T): T | null {
+/* 여러 후보 키 중 첫 값을 '문자열'로 반환 */
+function pickStr(obj: any, keys: string[]): string | null {
   for (const k of keys) {
-    if (obj && Object.prototype.hasOwnProperty.call(obj, k)) {
-      const val = (obj as any)[k];
-      return map ? map(val) : (val as T);
-    }
-    // 중첩 속성 지원 (예: data.unit_price)
+    // 중첩 접근 지원: a.b.c
     const parts = k.split(".");
-    if (parts.length > 1) {
-      let cur: any = obj;
-      let ok = true;
-      for (const p of parts) {
-        if (cur && Object.prototype.hasOwnProperty.call(cur, p)) {
-          cur = cur[p];
-        } else {
-          ok = false;
-          break;
-        }
+    let cur: any = obj;
+    let ok = true;
+    for (const p of parts) {
+      if (cur && Object.prototype.hasOwnProperty.call(cur, p)) {
+        cur = cur[p];
+      } else {
+        ok = false;
+        break;
       }
-      if (ok) return map ? map(cur) : (cur as T);
     }
+    if (ok && cur !== undefined && cur !== null && String(cur).length > 0) {
+      const s = String(cur).trim();
+      return s.length ? s : null;
+    }
+  }
+  return null;
+}
+
+/* 여러 후보 키 중 첫 값을 '숫자'로 반환 */
+function pickNum(obj: any, keys: string[]): number | null {
+  for (const k of keys) {
+    const parts = k.split(".");
+    let cur: any = obj;
+    let ok = true;
+    for (const p of parts) {
+      if (cur && Object.prototype.hasOwnProperty.call(cur, p)) {
+        cur = cur[p];
+      } else {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+    const n = toNum(cur);
+    if (n !== null) return n;
   }
   return null;
 }
@@ -40,24 +58,20 @@ function pick<T = any>(obj: any, keys: string[], map?: (x: any) => T): T | null 
 type Row = {
   tx_date: string;
 
-  // 코드/거래처
   erp_customer_code: string | null; // 코드
   customer_name: string | null;     // 거래처
 
-  // 품목
   item_name: string | null;         // 품명
   spec: string | null;              // 규격
   unit: string | null;              // 단위
 
-  // 수치 (화면은 price/debit 사용)
   qty: number | null;               // 수량
   price: number | null;             // 단가
-  debit: number | null;             // 매출금액(공급가)
+  debit: number | null;             // 매출금액
   prev_balance: number | null;      // 전일잔액
   deposit: number | null;           // 입금액
   balance: number | null;           // 금일잔액
 
-  // 기타
   remark: string | null;            // 비고
   profit_loss: number | null;       // 손익
   doc_no: string | null;
@@ -103,51 +117,42 @@ export default function LedgerDashboardPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "조회 실패");
 
-      // ★ A안 + 강화: 다양한 키/형태를 화면 표준(price/debit)으로 정규화
+      // A안 + 강화: 다양한 키/형태를 화면 표준(price/debit)으로 정규화
       const normalized: Row[] = (json.rows || []).map((r: any) => {
-        const qty = pick<number>(r, ["qty", "quantity", "수량"], toNum);
+        const qty = pickNum(r, ["qty", "quantity", "수량"]);
 
-        // 단가 후보: unit_price, unitPrice, unitprice, price, 판매단가, 매출단가, 단가
-        const price = pick<number>(
+        const price = pickNum(
           r,
-          ["price", "unit_price", "unitPrice", "unitprice", "판매단가", "매출단가", "단가", "data.unit_price"],
-          toNum
+          ["price", "unit_price", "unitPrice", "unitprice", "판매단가", "매출단가", "단가", "data.unit_price"]
         );
 
-        // 매출금액 후보: amount, debit, sales_amount, 공급가액, 매출금액, 판매금액
-        const debit = pick<number>(
+        const debit = pickNum(
           r,
-          ["debit", "amount", "sales_amount", "salesAmount", "공급가액", "매출금액", "판매금액", "data.amount"],
-          toNum
+          ["debit", "amount", "sales_amount", "salesAmount", "공급가액", "매출금액", "판매금액", "data.amount"]
         );
 
-        // 그 외 필드 매핑(가능한 폭넓게)
-        const prev_balance = pick<number>(
-          r,
-          ["prev_balance", "prevBalance", "전일잔액", "이월", "previous_balance"],
-          toNum
-        );
-        const deposit = pick<number>(r, ["deposit", "입금액", "입금", "credit"], toNum);
-        const balance = pick<number>(r, ["balance", "curr_balance", "금일잔액", "현재잔액"], toNum);
+        const prev_balance = pickNum(r, ["prev_balance", "prevBalance", "전일잔액", "이월", "previous_balance"]);
+        const deposit = pickNum(r, ["deposit", "입금액", "입금", "credit"]);
+        const balance = pickNum(r, ["balance", "curr_balance", "금일잔액", "현재잔액"]);
 
         return {
-          tx_date: pick<string>(r, ["tx_date", "date", "일자", "기준일"]) || "",
-          erp_customer_code: pick<string>(r, ["erp_customer_code", "code", "거래처코드", "코드"]),
-          customer_name: pick<string>(r, ["customer_name", "name", "거래처", "거래처명"]),
-          item_name: pick<string>(r, ["item_name", "품명", "item", "product"]),
-          spec: pick<string>(r, ["spec", "규격"]),
-          unit: pick<string>(r, ["unit", "단위"]),
+          tx_date: pickStr(r, ["tx_date", "date", "일자", "기준일"]) || "",
+          erp_customer_code: pickStr(r, ["erp_customer_code", "code", "거래처코드", "코드"]),
+          customer_name: pickStr(r, ["customer_name", "name", "거래처", "거래처명"]),
+          item_name: pickStr(r, ["item_name", "품명", "item", "product"]),
+          spec: pickStr(r, ["spec", "규격"]),
+          unit: pickStr(r, ["unit", "단위"]),
           qty,
           price,
           debit,
           prev_balance,
           deposit,
           balance,
-          remark: pick<string>(r, ["remark", "memo", "비고"]),
-          profit_loss: pick<number>(r, ["profit_loss", "손익"], toNum),
-          doc_no: pick<string>(r, ["doc_no", "전표번호"]),
-          line_no: pick<string | number>(r, ["line_no", "라인"]),
-          erp_row_key: pick<string>(r, ["erp_row_key"]) || `${Math.random()}`,
+          remark: pickStr(r, ["remark", "memo", "비고"]),
+          profit_loss: pickNum(r, ["profit_loss", "손익"]),
+          doc_no: pickStr(r, ["doc_no", "전표번호"]),
+          line_no: pickStr(r, ["line_no", "라인"]),
+          erp_row_key: pickStr(r, ["erp_row_key"]) || `${Math.random()}`,
         };
       });
 
@@ -180,9 +185,7 @@ export default function LedgerDashboardPage() {
 
   useEffect(() => { fetchData(1); }, []);
 
-  // === 표시용 보정 ===
-  // 1) 거래처/코드 칸이 비거나 UNK-*면 직전 값 이어받기
-  // 2) 단가/매출금액 표시 보정: price/debit이 없으면 qty와 다른 값을 이용해 계산
+  // 표시용 보정: UNK 이어받기 + 단가/매출금액 계산 보정
   const displayRows = useMemo(() => {
     const out: (Row & {
       _display_name: string | null;
@@ -195,29 +198,23 @@ export default function LedgerDashboardPage() {
     let lastCode: string | null = null;
 
     for (const r of rows) {
-      // 1) 고객명/코드 보정
       const rawName = (r.customer_name ?? "").trim() || null;
       const rawCode = (r.erp_customer_code ?? "").trim() || null;
 
-      const name =
-        (!rawName && lastName) ? lastName : rawName;
-      const code =
-        ((!rawCode || isUNK(rawCode)) && lastCode) ? lastCode : rawCode;
+      const name = (!rawName && lastName) ? lastName : rawName;
+      const code = ((!rawCode || isUNK(rawCode)) && lastCode) ? lastCode : rawCode;
 
       if (name) lastName = name;
       if (code && !isUNK(code)) lastCode = code;
 
-      // 2) 단가/매출금액 보정
       let showPrice: number | null = r.price ?? null;
       let showDebit: number | null = r.debit ?? null;
       const qty = r.qty ?? null;
 
-      // price 없고 debit/qty 있으면 역산
       if ((showPrice === null || showPrice === undefined) && qty && r.debit != null) {
         const p = (r.debit as number) / qty;
         if (Number.isFinite(p)) showPrice = Math.round(p);
       }
-      // debit 없고 qty/price 있으면 계산
       if ((showDebit === null || showDebit === undefined) && qty != null && r.price != null) {
         const d = qty * (r.price as number);
         if (Number.isFinite(d)) showDebit = Math.round(d);
@@ -278,24 +275,19 @@ export default function LedgerDashboardPage() {
         </div>
       </div>
 
-      {/* 테이블: 요청하신 열만 표시 (거래처, 규격, 단위, 비고, 손익 제거) */}
+      {/* 테이블: 요청하신 열만 표시 */}
       <div className="overflow-auto rounded-lg border border-white/10">
         <table className="min-w-full text-sm">
           <thead className="bg-white/10 sticky top-0">
             <tr>
-              {/* <th className="px-3 py-2 text-left">거래처</th>  ← 제거 */}
               <th className="px-3 py-2 text-left">코드</th>
               <th className="px-3 py-2 text-left">품명</th>
-              {/* <th className="px-3 py-2 text-left">규격</th> ← 제거 */}
-              {/* <th className="px-3 py-2 text-left">단위</th> ← 제거 */}
               <th className="px-3 py-2 text-right">수량</th>
               <th className="px-3 py-2 text-right">단가</th>
               <th className="px-3 py-2 text-right">매출금액</th>
               <th className="px-3 py-2 text-right">전일잔액</th>
               <th className="px-3 py-2 text-right">입금액</th>
               <th className="px-3 py-2 text-right">금일잔액</th>
-              {/* <th className="px-3 py-2 text-left">비고</th>  ← 제거 */}
-              {/* <th className="px-3 py-2 text-right">손익</th> ← 제거 */}
             </tr>
           </thead>
           <tbody>
@@ -309,25 +301,16 @@ export default function LedgerDashboardPage() {
 
             {displayRows.map((r) => (
               <tr key={r.erp_row_key} className="odd:bg-white/0 even:bg-white/5">
-                {/* 거래처 열은 제거했지만, 필요시 툴팁으로 확인 가능 */}
-                {/* <td className="px-3 py-2">{r._display_name || ""}</td> */}
                 <td className="px-3 py-2">{r._display_code || ""}</td>
                 <td className="px-3 py-2">
                   {r.item_name || ""}
-                  {/* 거래처명을 작은 회색으로 보이고 싶다면 아래 주석 해제
-                  <div className="text-xs opacity-60">{r._display_name || ""}</div>
-                  */}
                 </td>
-                {/* <td className="px-3 py-2">{r.spec || ""}</td> */}
-                {/* <td className="px-3 py-2">{r.unit || ""}</td> */}
                 <td className={`px-3 py-2 text-right ${isNeg(r.qty)}`}>{fmt(r.qty)}</td>
                 <td className={`px-3 py-2 text-right ${isNeg(r._display_price)}`}>{fmt(r._display_price)}</td>
                 <td className={`px-3 py-2 text-right ${isNeg(r._display_debit)}`}>{fmt(r._display_debit)}</td>
                 <td className={`px-3 py-2 text-right ${isNeg(r.prev_balance)}`}>{fmt(r.prev_balance)}</td>
                 <td className={`px-3 py-2 text-right ${isNeg(r.deposit)}`}>{fmt(r.deposit)}</td>
                 <td className={`px-3 py-2 text-right ${isNeg(r.balance)}`}>{fmt(r.balance)}</td>
-                {/* <td className="px-3 py-2">{r.remark ?? ""}</td> */}
-                {/* <td className={`px-3 py-2 text-right ${isNeg(r.profit_loss)}`}>{fmt(r.profit_loss)}</td> */}
               </tr>
             ))}
           </tbody>
@@ -354,7 +337,6 @@ export default function LedgerDashboardPage() {
         <div className="ml-auto opacity-70 text-xs">정렬: 일자 ↓, 전표↑, 라인↑ (API 내부)</div>
       </div>
 
-      {/* 삭제 섹션 */}
       <DangerZone />
     </div>
   );
