@@ -239,7 +239,7 @@ export default function LedgerPage() {
   const isDepositRow = (r: Row) => (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
 
   return (
-    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
+    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21", fontSize: 16 }}>
       {/* 상단 우측 고정 버튼 */}
       <Link
         href="/dashboard"
@@ -251,7 +251,7 @@ export default function LedgerPage() {
           zIndex: 1000,
           background: "#1739f7",
           color: "#fff",
-          padding: "10px 14px",
+          padding: "8px 12px",
           borderRadius: 10,
           fontWeight: 800,
           boxShadow: "0 6px 16px rgba(0,0,0,.35)",
@@ -263,16 +263,17 @@ export default function LedgerPage() {
         대시보드로
       </Link>
 
-      <h1 className="text-[26px] md:text-[36px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
+      <h1 className="text-[24px] md:text-[32px] font-extrabold mb-2">내 거래 내역 (최근 3개월)</h1>
 
-      <div className="mb-3 text-white/80" style={{ fontSize: 18 }}>
+      <div className="mb-2 text-white/80" style={{ fontSize: 15 }}>
         <span className="mr-2">{loginName || "고객"} 님,</span>
         기간: <span className="font-semibold">{ymd(date_from)}</span> ~{" "}
         <span className="font-semibold">{ymd(date_to)}</span>
       </div>
 
-      {/* ▼ 가로/세로 스크롤 : 바깥(뷰포트)이 스크롤 담당, 안쪽(프레임)이 흰색 테두리를 표 너비에 맞춰 감싼다 */}
+      {/* 스크롤(가로/세로) 컨테이너: 인앱 sticky 지원을 위해 overflow는 여기 한 곳에만 둔다 */}
       <div className="scroll-viewport">
+        {/* 프레임: 겉 테두리만 담당(overflow는 끈다 → sticky가 끊기지 않음) */}
         <div className="scroll-frame">
           <table className="ledger">
             <thead className="sticky-head">
@@ -311,6 +312,7 @@ export default function LedgerPage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                // 토글
                                 if (bubble.open && bubble.rowId === rowId) {
                                   setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null });
                                   return;
@@ -323,7 +325,7 @@ export default function LedgerPage() {
                                   rowId,
                                 });
                               }}
-                              className="ml-0.5 shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white text-[13px] hover:bg-white hover:text-[#0b0d21] transition"
+                              className="ml-0.5 shrink-0 inline-flex items-center justify-center info-btn"
                               title="상세 보기" aria-label="상세 보기"
                             >i</button>
                           )}
@@ -355,37 +357,39 @@ export default function LedgerPage() {
         />
       )}
 
-      {/* ✅ 스타일 */}
+      {/* 스타일 */}
       <style jsx>{`
-        /* === 셀 여백/폰트 조절 포인트 === */
+        /* 크기(두번째 사진 느낌으로 컴팩트) */
         :root {
           --cell-xpad: 2ch;   /* 좌우 여백 (공백 2칸) */
-          --cell-ypad: 10px;  /* 상하 여백 */
-          --table-font: 16px; /* 표 폰트 */
+          --cell-ypad: 6px;   /* 데이터 셀 상하 여백 */
+          --head-ypad: 7px;   /* 헤더 셀 상하 여백 */
+          --table-font: 14px; /* 폰트 */
         }
 
-        /* 바깥: 스크롤 전용 */
+        /* 스크롤을 담당하는 단 하나의 컨테이너(인앱 sticky 대응) */
         .scroll-viewport{
           max-height: 75vh;
           overflow: auto;
+          -webkit-overflow-scrolling: touch; /* iOS 인앱 */
           background: rgba(255,255,255,.02);
         }
 
-        /* 안쪽: 흰색 테두리(표 실제 너비에 맞춤) */
+        /* 겉 테두리만 담당 — overflow를 쓰지 않는다(인앱 sticky 깨짐 방지) */
         .scroll-frame{
-          display: inline-block;           /* 표 너비만큼만 차지 */
-          border: 1px solid #ffffff;       /* 겉 테두리 */
+          display: inline-block;
+          border: 1px solid #ffffff;
           border-radius: 12px;
           box-shadow: 0 6px 24px rgba(0,0,0,.35);
-          overflow: hidden;                /* 둥근 모서리 안으로 내용 자르기 */
+          /* overflow: visible;  기본값(visible) 유지 */
           background: transparent;
         }
 
         .ledger{
-          width: max-content;              /* 내용 기준 너비 */
+          width: max-content;
           border-collapse: collapse;
           table-layout: auto;
-          white-space: nowrap;             /* 줄바꿈 방지 → 셀 폭은 내용 기준 */
+          white-space: nowrap;
           font-size: var(--table-font);
           color: #fff;
           text-align: center;
@@ -394,36 +398,49 @@ export default function LedgerPage() {
         .sticky-head th{
           position: sticky;
           top: 0;
-          z-index: 10;
-          background: #1739f7;            /* 로그인 버튼과 같은 파랑 */
+          z-index: 20;                    /* 인앱에서 위로 확실히 */
+          background: #1739f7;            /* 로그인 버튼과 동일 파랑 */
           color: #fff;
           font-weight: 800;
           letter-spacing: .02em;
           border-bottom: 1px solid #ffffff;
           text-shadow: 0 1px 0 rgba(0,0,0,.25);
+          padding: var(--head-ypad) var(--cell-xpad);
         }
 
         thead th, tbody td{
-          padding: var(--cell-ypad) var(--cell-xpad); /* 좌우 2ch 고정 */
           vertical-align: middle;
           border-right: 1px solid rgba(255,255,255,.35);
           border-bottom: 1px solid rgba(255,255,255,.3);
         }
+        tbody td{
+          padding: var(--cell-ypad) var(--cell-xpad);
+          background: #0b0d21;
+        }
+        tbody tr:nth-child(even) td{ background: #101536; }
         thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
 
-        /* 본문 줄무늬 */
-        tbody tr td{ background: #0b0d21; }
-        tbody tr:nth-child(even) td{ background: #101536; }
+        /* i 버튼(작게) */
+        .info-btn{
+          width: 20px; height: 20px;
+          border-radius: 6px;
+          border: 1px solid #fff;
+          background: transparent;
+          color:#fff;
+          font-size: 12px;
+          line-height: 1;
+        }
+        .info-btn:hover{ background:#fff; color:#0b0d21; }
 
-        /* 최소 너비(필요 시 조절) */
-        .col-date { min-width: 96px; }
-        .col-name { min-width: 320px; }
-        .col-qty  { min-width: 84px; }
+        /* 최소 너비 */
+        .col-date { min-width: 84px; }
+        .col-name { min-width: 260px; }
+        .col-qty  { min-width: 70px; }
 
-        /* 모바일 최소 보장 */
+        /* 모바일 세밀조정 */
         @media (max-width: 480px) {
-          :root{ --table-font: 15px; --cell-ypad: 8px; }
+          :root{ --table-font: 13.5px; --cell-ypad: 5px; --head-ypad: 6px; }
           .col-date { min-width: 60px; }
           .col-qty  { min-width: 54px; }
         }
