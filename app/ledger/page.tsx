@@ -46,22 +46,21 @@ const Bubble: React.FC<{
     const calc = () => {
       const rect = anchorEl.getBoundingClientRect();
       const pad = 8;
-      const w = 240;
-      const h = 140;
+      const w = 320;  // ← 길이(너비) 늘림
+      const h = 168;  // ← 높이 약간 늘림
 
+      // ✅ 항상 버튼의 오른쪽에 배치
       let left = rect.right + pad;
       let top = rect.top + rect.height / 2 - h / 2;
-      let side: "right" | "left" = "right";
 
-      if (left + w > window.innerWidth - 8) {
-        left = rect.left - pad - w;
-        side = "left";
-      }
+      // 화면 밖으로 넘어가면 살짝만 클램프 (그래도 기준은 오른쪽)
+      const maxLeft = window.innerWidth - w - 8;
+      if (left > maxLeft) left = Math.max(rect.right + 2, maxLeft);
       if (top < 8) top = 8;
       if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
 
       setStyle({ position: "fixed", left, top, width: w, height: h, zIndex: 999 });
-      setArrowSide(side);
+      setArrowSide("right"); // ← 항상 오른쪽 화살표
     };
 
     calc();
@@ -261,7 +260,7 @@ export default function LedgerPage() {
         대시보드로
       </Link>
 
-      {/* ✅ 페이지 제목도 sticky로 고정 */}
+      {/* 페이지 제목(sticky) */}
       <div className="page-sticky-title">
         <h1 className="title">내 거래 내역 (최근 3개월)</h1>
         <div className="subtitle">
@@ -270,7 +269,7 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* 스크롤(가로/세로) 컨테이너 */}
+      {/* 내부 스크롤 뷰포트 (윈도우 스크롤이 아니라 여기에서만 스크롤 → 헤더 끝까지 고정) */}
       <div className="scroll-viewport">
         {/* 프레임: 겉 테두리만 담당 */}
         <div className="scroll-frame">
@@ -356,15 +355,13 @@ export default function LedgerPage() {
 
       {/* 스타일 */}
       <style jsx>{`
-        /* 크기(컴팩트) */
         :root {
-          --cell-xpad: 2ch;   /* 좌우 여백 (공백 2칸) */
-          --cell-ypad: 6px;   /* 데이터 셀 상하 여백 */
-          --head-ypad: 7px;   /* 헤더 셀 상하 여백 */
-          --table-font: 14px; /* 폰트 */
+          --cell-xpad: 2ch;
+          --cell-ypad: 6px;
+          --head-ypad: 7px;
+          --table-font: 14px;
         }
 
-        /* 페이지 상단 제목도 sticky */
         .page-sticky-title{
           position: sticky;
           top: 0;
@@ -377,15 +374,15 @@ export default function LedgerPage() {
         .subtitle{ font-size: 15px; color: rgba(255,255,255,.8); }
         .subtitle .strong{ font-weight: 700; color: #fff; }
 
-        /* 스크롤 컨테이너 */
+        /* ✅ 윈도우 스크롤이 아닌 내부 스크롤만 발생하도록 높이를 고정 */
         .scroll-viewport{
-          max-height: 75vh;
+          height: calc(100vh - 120px); /* 제목/여백 고려한 대략값 */
+          min-height: 320px;
           overflow: auto;
           -webkit-overflow-scrolling: touch;
           background: rgba(255,255,255,.02);
         }
 
-        /* 겉 테두리 */
         .scroll-frame{
           display: inline-block;
           border: 1px solid #ffffff;
@@ -430,9 +427,9 @@ export default function LedgerPage() {
         thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
 
-        /* 품명 셀을 최대한 좁게 */
+        /* 품명은 최대한 좁게 유지 */
         .col-date { min-width: 84px; }
-        .col-name { min-width: 180px; } /* ↓ 기존 260px → 180px */
+        .col-name { min-width: 180px; }
         .col-qty  { min-width: 70px; }
 
         .name-wrap{
@@ -442,11 +439,10 @@ export default function LedgerPage() {
         }
         .name-text{
           display:inline-block;
-          max-width: 18ch;               /* 데스크톱 기준 텍스트 폭 */
+          max-width: 18ch;
           overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
         }
 
-        /* i 버튼(작게) */
         .info-btn{
           width: 20px; height: 20px;
           border-radius: 6px;
@@ -458,13 +454,13 @@ export default function LedgerPage() {
         }
         .info-btn:hover{ background:#fff; color:#0b0d21; }
 
-        /* 모바일 세밀조정 */
         @media (max-width: 480px) {
           :root{ --table-font: 13.5px; --cell-ypad: 5px; --head-ypad: 6px; }
           .col-date { min-width: 60px; }
-          .col-name { min-width: 140px; }   /* 모바일은 더 좁게 */
+          .col-name { min-width: 140px; }
           .col-qty  { min-width: 54px; }
-          .name-text{ max-width: 14ch; }    /* 모바일 텍스트 폭 더 줄임 */
+          .name-text{ max-width: 14ch; }
+          .scroll-viewport{ height: calc(100vh - 128px); }
         }
       `}</style>
     </div>
