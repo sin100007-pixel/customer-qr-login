@@ -1,6 +1,6 @@
 // pages/api/ledger-import.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import formidable, { Fields, Files } from "formidable";
+import formidable from "formidable"; // ❗ named import 제거
 import * as fs from "fs";
 import * as path from "path";
 import * as XLSX from "xlsx";
@@ -44,7 +44,6 @@ function N(v: any): number | null {
 function toYMD(input: any): string {
   if (input === null || input === undefined || input === "") return "";
   if (typeof input === "number" && input > 59) {
-    // Excel date serial
     const d = XLSX.SSF.parse_date_code(input);
     if (d) {
       const mm = String(d.m).padStart(2, "0");
@@ -63,7 +62,6 @@ function toYMD(input: any): string {
   return `${y}-${mm}-${dd}`;
 }
 
-/* “0/빈값” 판정 & 전체 0줄 판정 */
 function zeroish(v: any): boolean {
   if (v === null || v === undefined) return true;
   const s = String(v).trim();
@@ -77,20 +75,10 @@ function isAllZeroRow(r: Record<string, any>): boolean {
   return vals.every(zeroish);
 }
 
-/* 헤더 감지 */
 const HEADER_WORDS = new Set([
-  "거래처","고객명",
-  "코드","전표","코드명",
-  "품명","상품명","품목",
-  "규격","규격명",
-  "단위",
-  "수량",
-  "단가",
-  "매출금액","공급가액","판매금액",
-  "전일잔액","이월",
-  "입금액","입금",
-  "금일잔액","현재잔액",
-  "비고",
+  "거래처","고객명","코드","전표","코드명","품명","상품명","품목","규격","규격명",
+  "단위","수량","단가","매출금액","공급가액","판매금액","전일잔액","이월","입금액","입금",
+  "금일잔액","현재잔액","비고",
 ]);
 function isHeaderLikeRow(cells: string[]): boolean {
   if (cells.length === 0) return false;
@@ -101,8 +89,8 @@ function isHeaderLikeRow(cells: string[]): boolean {
   return headerCount >= Math.max(2, Math.floor(nonEmpty.length * 0.6));
 }
 
-/* 폼 파싱 */
-function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
+/* 폼 파싱 – 타입을 any로 완화 */
+function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
   const form = formidable({ multiples: false, keepExtensions: true });
   return new Promise((resolve, reject) => {
     form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
@@ -120,7 +108,7 @@ function firstOf<T = any>(obj: Record<string, any> | undefined, keys: string[]):
   }
   return undefined;
 }
-function pickFirstFile(files: Files): any {
+function pickFirstFile(files: any): any {
   for (const key of Object.keys(files || {})) {
     const v: any = (files as any)[key];
     if (Array.isArray(v)) { if (v.length > 0) return v[0]; }
@@ -255,7 +243,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         !(memo && memo.trim());
       if (allNumsZero && noTextCols) continue;
 
-      // 최소 의미 검사(헤더 단어 방어)
       const hasMeaning =
         (name && name !== "거래처" && name !== "고객명") ||
         (item_name && item_name !== "품명" && item_name !== "상품명") ||
@@ -275,7 +262,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
       normalized.push({
         erp_row_key,
-        tx_date,            // YYYY-MM-DD
+        tx_date,
         row_no: rowNo,
         erp_customer_code,
         name: name || null, // customer_name
