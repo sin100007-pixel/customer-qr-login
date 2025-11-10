@@ -43,17 +43,14 @@ const Bubble: React.FC<{
     if (!anchorEl) return;
 
     const calc = () => {
-      const rect = anchorEl.getBoundingClientRect();
-      const pad = 8;
-      const w = 240;
-      const h = 140;
-
-      let left = rect.right + pad;
-      let top = rect.top + rect.height / 2 - h / 2;
+      const r = anchorEl.getBoundingClientRect();
+      const pad = 8, w = 240, h = 140;
+      let left = r.right + pad;
+      let top = r.top + r.height / 2 - h / 2;
       let side: "right" | "left" = "right";
 
       if (left + w > window.innerWidth - 8) {
-        left = rect.left - pad - w;
+        left = r.left - pad - w;
         side = "left";
       }
       if (top < 8) top = 8;
@@ -65,7 +62,7 @@ const Bubble: React.FC<{
 
     calc();
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const onClickAway = (e: MouseEvent) => {
+    const onAway = (e: MouseEvent) => {
       const panel = document.getElementById("eg-bubble");
       if (panel && !panel.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
         onClose();
@@ -75,12 +72,12 @@ const Bubble: React.FC<{
     window.addEventListener("resize", calc);
     window.addEventListener("scroll", calc, true);
     window.addEventListener("keydown", onEsc);
-    window.addEventListener("mousedown", onClickAway);
+    window.addEventListener("mousedown", onAway);
     return () => {
       window.removeEventListener("resize", calc);
       window.removeEventListener("scroll", calc, true);
       window.removeEventListener("keydown", onEsc);
-      window.removeEventListener("mousedown", onClickAway);
+      window.removeEventListener("mousedown", onAway);
     };
   }, [anchorEl, onClose]);
 
@@ -103,10 +100,7 @@ const Bubble: React.FC<{
       >
         <div className="eg-bubble-head">
           <div className="eg-bubble-title" title={title || "상세"}>{title || "상세"}</div>
-          <button
-            className="eg-bubble-close"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-          >
+          <button className="eg-bubble-close" onClick={(e) => { e.stopPropagation(); onClose(); }}>
             닫기
           </button>
         </div>
@@ -129,18 +123,10 @@ const Bubble: React.FC<{
           background: rgba(255,255,255,.06);
         }
         .eg-bubble-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px;}
-        .eg-bubble-close{
-          font-size:12px;padding:2px 7px;border-radius:7px;
-          border:1px solid #fff;background:transparent;color:#fff;
-        }
+        .eg-bubble-close{font-size:12px;padding:2px 7px;border-radius:7px;border:1px solid #fff;background:transparent;color:#fff;}
         .eg-bubble-close:hover{background:#fff;color:#0b0d21;}
-        .eg-bubble-body{
-          padding:8px;line-height:1.5;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);
-        }
-        .eg-bubble.right::after,.eg-bubble.left::after{
-          content:"";position:absolute;top:50%;transform:translateY(-50%);
-          width:0;height:0;border:8px solid transparent;
-        }
+        .eg-bubble-body{padding:8px;line-height:1.5;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);}
+        .eg-bubble.right::after,.eg-bubble.left::after{content:"";position:absolute;top:50%;transform:translateY(-50%);width:0;height:0;border:8px solid transparent;}
         .eg-bubble.right::after{left:-16px;border-right-color:#1a1d3a;}
         .eg-bubble.left::after{right:-16px;border-left-color:#1a1d3a;}
       `}</style>
@@ -151,15 +137,14 @@ const Bubble: React.FC<{
 /* ---------- 페이지 ---------- */
 export default function LedgerPage() {
   const BTN_BLUE = "#1739f7";
-  const TOPBAR_H = 64;   // 상단바 높이
-  const HDR_H = 44;      // 헤더바 높이
-
-  // 가로 스크롤 트리거용 최소 너비 (헤더/테이블 동일 적용)
-  const MIN_W = 980;
+  const TOPBAR_H = 64;
+  const HDR_H = 44;
+  const MIN_W = 980; // 가로스크롤 트리거용 최소 너비
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [loginName, setLoginName] = useState("");
 
   const [bubble, setBubble] = useState<{
     open: boolean;
@@ -177,16 +162,13 @@ export default function LedgerPage() {
     return d;
   }, [date_to]);
 
-  const [loginName, setLoginName] = useState("");
-
-  // 로그인 이름 확보
   useEffect(() => {
     const getName = async () => {
-      const usp = new URLSearchParams(window.location.search);
-      const urlName = (usp.get("name") || "").trim();
-      if (urlName) {
-        setLoginName(urlName);
-        try { localStorage.setItem("session_user", urlName); } catch {}
+      const q = new URLSearchParams(window.location.search);
+      const fromUrl = (q.get("name") || "").trim();
+      if (fromUrl) {
+        setLoginName(fromUrl);
+        try { localStorage.setItem("session_user", fromUrl); } catch {}
         return;
       }
       try {
@@ -207,19 +189,17 @@ export default function LedgerPage() {
     getName();
   }, []);
 
-  // 데이터 로드
   useEffect(() => {
     const run = async () => {
       setErr(""); setRows([]);
       if (!loginName) { setLoading(false); setErr("로그인 이름을 확인할 수 없습니다."); return; }
       setLoading(true);
       try {
-        const q = encodeURIComponent(loginName);
         const url =
           `/api/ledger-search?order=excel&limit=2000` +
           `&date_from=${ymd(date_from)}` +
           `&date_to=${ymd(date_to)}` +
-          `&q=${q}`;
+          `&q=${encodeURIComponent(loginName)}`;
         const r = await fetch(url, { cache: "no-store" });
         const data: ApiResp = await r.json();
         if (!data.ok) throw new Error(data.message || "불러오기 실패");
@@ -237,7 +217,7 @@ export default function LedgerPage() {
 
   return (
     <div className="wrap text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
-      {/* 상단 Topbar — 인앱 호환 sticky */}
+      {/* 상단 Topbar */}
       <div
         className="topbar"
         style={{
@@ -280,24 +260,27 @@ export default function LedgerPage() {
         </Link>
       </div>
 
-      {/* 내부 스크롤 컨테이너 (가로/세로 스크롤) */}
+      {/* 스크롤 컨테이너 */}
       <div
         className="scroller"
         style={{
+          position: "relative",       // ✅ sticky 안전판
           height: `calc(100vh - ${TOPBAR_H}px)`,
           overflowY: "auto",
-          overflowX: "auto",  // ★ 좌우 스크롤
+          overflowX: "auto",
           WebkitOverflowScrolling: "touch",
-          padding: "0 16px 24px",
+          padding: "0 12px 16px",
         }}
       >
-        {/* 복제 헤더(Grid) — sticky + minWidth로 가로 스크롤 연동 */}
+        {/* 고정 헤더 (복제) */}
         <div
           className="hdr-grid"
           style={{
             position: "sticky",
-            top: 0,
-            zIndex: 800,
+            top: 0,                    // ✅ 항상 스크롤 컨테이너 맨 위에 고정
+            zIndex: 900,               // ✅ 다른 요소 위에
+            transform: "translateZ(0)",// ✅ 인앱 점프 방지
+            willChange: "transform",   // ✅ 렌더링 안정화
             display: "grid",
             gridTemplateColumns: "12% 32% 10% 12% 12% 10% 12%",
             height: HDR_H,
@@ -307,8 +290,8 @@ export default function LedgerPage() {
             background: BTN_BLUE,
             color: "#fff",
             fontWeight: 800,
-            padding: "0 8px",
-            minWidth: MIN_W, // ★ 테이블과 동일
+            padding: "0 6px",
+            minWidth: MIN_W,
           }}
         >
           <div className="text-center">일자</div>
@@ -320,12 +303,9 @@ export default function LedgerPage() {
           <div className="text-center">잔액</div>
         </div>
 
-        {/* 테이블 본문 */}
+        {/* 테이블 */}
         <div className="relative rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]">
-          <table
-            className="ledger w-full leading-tight"
-            style={{ fontSize: 16, minWidth: MIN_W }} // ★ 헤더와 동일
-          >
+          <table className="ledger w-full leading-tight" style={{ fontSize: 16, minWidth: MIN_W }}>
             <colgroup>
               <col style={{ width: "12%" }} />
               <col style={{ width: "32%" }} />
@@ -335,7 +315,6 @@ export default function LedgerPage() {
               <col style={{ width: "10%" }} />
               <col style={{ width: "12%" }} />
             </colgroup>
-
             <tbody>
               {loading ? (
                 <tr><td className="py-3 text-center" colSpan={7}>불러오는 중…</td></tr>
@@ -346,8 +325,7 @@ export default function LedgerPage() {
               ) : (
                 rows.map((r, i) => {
                   const shortName = trim7(r.item_name || "");
-                  const needInfo =
-                    (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
+                  const needInfo = (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim());
                   const rowId = `${r.tx_date}-${r.item_name}-${i}`;
 
                   return (
@@ -355,7 +333,7 @@ export default function LedgerPage() {
                       <td className="text-center">{r.tx_date?.slice(5)}</td>
                       <td className="text-center">
                         <div className="inline-flex items-center justify-center gap-1 max-w-full">
-                          <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
+                          <span className="truncate">{shortName}</span>
                           {needInfo && (
                             <button
                               type="button"
@@ -368,7 +346,7 @@ export default function LedgerPage() {
                                 setBubble({
                                   open: true,
                                   title: r.item_name || "",
-                                  content: (r.memo && r.memo.trim()) || r.item_name || "",
+                                  content: (r.memo?.trim() || r.item_name || ""),
                                   anchorEl: e.currentTarget,
                                   rowId,
                                 });
@@ -379,7 +357,6 @@ export default function LedgerPage() {
                           )}
                         </div>
                       </td>
-
                       <td className="text-center">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
                       <td className="text-center">{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
                       <td className="text-center">{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
@@ -394,29 +371,20 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {bubble.open && (
-        <Bubble
-          anchorEl={bubble.anchorEl}
-          title={bubble.title}
-          content={bubble.content}
-          onClose={() => setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null })}
-        />
-      )}
-
       <style jsx>{`
         .ledger{
-          border-collapse: separate;   /* sticky 헤더 충돌 방지 */
+          border-collapse: separate;
           border-spacing: 0;
           width: 100%;
-          table-layout: fixed;         /* colgroup 퍼센트 폭 반영 */
+          table-layout: fixed;
           border: 1px solid #ffffff;
           text-align: center;
           border-radius: 12px; overflow: hidden;
         }
-
+        /* 여백 확 줄이기 */
         tbody td{
-          padding-block: 10px;
-          padding-inline: 1.2ch;       /* 첨부 버전의 여백 유지 */
+          padding-block: 8px;
+          padding-inline: 10px;
           white-space: nowrap;
           vertical-align: middle;
           border-right: 1px solid rgba(255,255,255,.35);
@@ -428,10 +396,21 @@ export default function LedgerPage() {
         tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
 
-        /* 모바일 최적화: 첨부 감성 유지 + 살짝만 더 타이트 */
+        /* 모바일: 더 타이트하게 → 일자·품명·수량이 기본 화면에 나옴 */
         @media (max-width: 480px) {
+          .hdr-grid{
+            grid-template-columns: 68px 210px 58px 108px 110px 100px 110px !important;
+          }
+          .ledger colgroup col:nth-child(1){ width:68px !important; }
+          .ledger colgroup col:nth-child(2){ width:210px !important; }
+          .ledger colgroup col:nth-child(3){ width:58px !important; }
+          .ledger colgroup col:nth-child(4){ width:108px !important; }
+          .ledger colgroup col:nth-child(5){ width:110px !important; }
+          .ledger colgroup col:nth-child(6){ width:100px !important; }
+          .ledger colgroup col:nth-child(7){ width:110px !important; }
+
           .ledger { font-size: 15px; }
-          tbody td { padding-block: 8px; padding-inline: .8ch; }
+          tbody td { padding-block: 4px; padding-inline: 4px; }
         }
       `}</style>
     </div>
