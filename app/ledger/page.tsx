@@ -151,11 +151,11 @@ const Bubble: React.FC<{
 /* ---------- 페이지 ---------- */
 export default function LedgerPage() {
   const BTN_BLUE = "#1739f7";
-  const TOPBAR_H = 64;
-  const HDR_H = 44;
+  const TOPBAR_H = 64;   // 상단바 높이
+  const HDR_H = 44;      // 헤더바 높이
 
-  // ✅ 테이블 최소 가로폭(px) — 화면이 더 좁으면 좌우 스크롤
-  const TABLE_MIN_W = 1080;
+  // 가로 스크롤 트리거용 최소 너비 (헤더/테이블 동일 적용)
+  const MIN_W = 980;
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,6 +169,7 @@ export default function LedgerPage() {
     rowId: string | null;
   }>({ open: false, title: "", content: "", anchorEl: null, rowId: null });
 
+  // 기간: 최근 3개월
   const date_to = useMemo(() => new Date(), []);
   const date_from = useMemo(() => {
     const d = new Date(date_to);
@@ -178,6 +179,7 @@ export default function LedgerPage() {
 
   const [loginName, setLoginName] = useState("");
 
+  // 로그인 이름 확보
   useEffect(() => {
     const getName = async () => {
       const usp = new URLSearchParams(window.location.search);
@@ -205,6 +207,7 @@ export default function LedgerPage() {
     getName();
   }, []);
 
+  // 데이터 로드
   useEffect(() => {
     const run = async () => {
       setErr(""); setRows([]);
@@ -233,8 +236,8 @@ export default function LedgerPage() {
   const isDepositRow = (r: Row) => (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
 
   return (
-    <div className="viewport" style={{ position: "fixed", inset: 0, background: "#0b0d21", color: "#fff", overflow: "hidden" }}>
-      {/* 상단 Topbar (인앱 호환 sticky) */}
+    <div className="wrap text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
+      {/* 상단 Topbar — 인앱 호환 sticky */}
       <div
         className="topbar"
         style={{
@@ -277,20 +280,18 @@ export default function LedgerPage() {
         </Link>
       </div>
 
-      {/* 내부 스크롤 컨테이너 — 가로/세로 스크롤 모두 허용 */}
+      {/* 내부 스크롤 컨테이너 (가로/세로 스크롤) */}
       <div
         className="scroller"
         style={{
           height: `calc(100vh - ${TOPBAR_H}px)`,
           overflowY: "auto",
-          overflowX: "auto",                 // ✅ 좌우 스크롤 복구
+          overflowX: "auto",  // ★ 좌우 스크롤
           WebkitOverflowScrolling: "touch",
-          overscrollBehavior: "contain",
-          touchAction: "pan-y",
-          padding: "0 12px 20px",
+          padding: "0 16px 24px",
         }}
       >
-        {/* 복제 헤더(Grid) — minWidth로 스크롤 생성 */}
+        {/* 복제 헤더(Grid) — sticky + minWidth로 가로 스크롤 연동 */}
         <div
           className="hdr-grid"
           style={{
@@ -298,8 +299,7 @@ export default function LedgerPage() {
             top: 0,
             zIndex: 800,
             display: "grid",
-            // 데스크톱 기준 px 고정폭
-            gridTemplateColumns: "110px 320px 90px 130px 140px 120px 140px",
+            gridTemplateColumns: "12% 32% 10% 12% 12% 10% 12%",
             height: HDR_H,
             alignItems: "center",
             border: "1px solid #fff",
@@ -307,8 +307,8 @@ export default function LedgerPage() {
             background: BTN_BLUE,
             color: "#fff",
             fontWeight: 800,
-            padding: "0 6px",
-            minWidth: TABLE_MIN_W,           // ✅ 가로 스크롤 트리거
+            padding: "0 8px",
+            minWidth: MIN_W, // ★ 테이블과 동일
           }}
         >
           <div className="text-center">일자</div>
@@ -323,17 +323,17 @@ export default function LedgerPage() {
         {/* 테이블 본문 */}
         <div className="relative rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]">
           <table
-            className="ledger leading-tight"
-            style={{ fontSize: 16, minWidth: TABLE_MIN_W, width: "100%" }}
+            className="ledger w-full leading-tight"
+            style={{ fontSize: 16, minWidth: MIN_W }} // ★ 헤더와 동일
           >
             <colgroup>
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "320px" }} />
-              <col style={{ width: "90px" }} />
-              <col style={{ width: "130px" }} />
-              <col style={{ width: "140px" }} />
-              <col style={{ width: "120px" }} />
-              <col style={{ width: "140px" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "32%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
             </colgroup>
 
             <tbody>
@@ -355,7 +355,7 @@ export default function LedgerPage() {
                       <td className="text-center">{r.tx_date?.slice(5)}</td>
                       <td className="text-center">
                         <div className="inline-flex items-center justify-center gap-1 max-w-full">
-                          <span className="truncate">{shortName}</span>
+                          <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
                           {needInfo && (
                             <button
                               type="button"
@@ -405,16 +405,18 @@ export default function LedgerPage() {
 
       <style jsx>{`
         .ledger{
-          border-collapse: separate;
+          border-collapse: separate;   /* sticky 헤더 충돌 방지 */
           border-spacing: 0;
-          table-layout: fixed;
+          width: 100%;
+          table-layout: fixed;         /* colgroup 퍼센트 폭 반영 */
           border: 1px solid #ffffff;
           text-align: center;
           border-radius: 12px; overflow: hidden;
         }
+
         tbody td{
           padding-block: 10px;
-          padding-inline: 10px;
+          padding-inline: 1.2ch;       /* 첨부 버전의 여백 유지 */
           white-space: nowrap;
           vertical-align: middle;
           border-right: 1px solid rgba(255,255,255,.35);
@@ -426,21 +428,10 @@ export default function LedgerPage() {
         tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
 
-        /* ▼ 모바일: 여백 확 줄이고, 첫 화면에 일자/품명/수량 보이도록 폭 조정 */
+        /* 모바일 최적화: 첨부 감성 유지 + 살짝만 더 타이트 */
         @media (max-width: 480px) {
-          .hdr-grid{
-            grid-template-columns: 72px 220px 68px 108px 110px 100px 110px !important;
-          }
-          .ledger colgroup col:nth-child(1){ width:72px !important; }
-          .ledger colgroup col:nth-child(2){ width:220px !important; }
-          .ledger colgroup col:nth-child(3){ width:68px !important; }
-          .ledger colgroup col:nth-child(4){ width:108px !important; }
-          .ledger colgroup col:nth-child(5){ width:110px !important; }
-          .ledger colgroup col:nth-child(6){ width:100px !important; }
-          .ledger colgroup col:nth-child(7){ width:110px !important; }
-
           .ledger { font-size: 15px; }
-          tbody td { padding-block: 6px; padding-inline: 6px; }
+          tbody td { padding-block: 8px; padding-inline: .8ch; }
         }
       `}</style>
     </div>
