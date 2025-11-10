@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 /* ---------- 유틸 ---------- */
 const fmt = (n: number | string | null | undefined) => {
@@ -13,8 +14,7 @@ const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
-const trim7 = (s: string) =>
-  (s?.length ?? 0) > 7 ? s.slice(0, 7) + "…" : (s || "");
+const trim7 = (s: string) => ((s?.length ?? 0) > 7 ? s.slice(0, 7) + "…" : (s || ""));
 
 /* ---------- 타입 ---------- */
 type Row = {
@@ -29,7 +29,7 @@ type Row = {
 };
 type ApiResp = { ok: boolean; rows?: Row[]; message?: string };
 
-/* ---------- 작은 말풍선(항상 i 오른쪽, 넘치면 왼쪽) ---------- */
+/* ---------- 작은 말풍선 ---------- */
 const Bubble: React.FC<{
   anchorEl: HTMLButtonElement | null;
   title: string;
@@ -45,24 +45,19 @@ const Bubble: React.FC<{
     const calc = () => {
       const rect = anchorEl.getBoundingClientRect();
       const pad = 8;
-      const w = 240;   // 작게
-      const h = 140;   // 작게
+      const w = 240;
+      const h = 140;
 
-      // 기본: i 오른쪽
       let left = rect.right + pad;
       let top = rect.top + rect.height / 2 - h / 2;
       let side: "right" | "left" = "right";
 
-      // 오른쪽이 넘치면 왼쪽으로
       if (left + w > window.innerWidth - 8) {
         left = rect.left - pad - w;
         side = "left";
       }
-      // 상하 보정
       if (top < 8) top = 8;
-      if (top + h > window.innerHeight - 8) {
-        top = window.innerHeight - h - 8;
-      }
+      if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
 
       setStyle({ position: "fixed", left, top, width: w, height: h, zIndex: 999 });
       setArrowSide(side);
@@ -93,35 +88,24 @@ const Bubble: React.FC<{
 
   return (
     <>
-      {/* 배경 클릭으로 닫기 */}
       <div
         className="fixed inset-0 z-[998] bg-black/10"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
         aria-hidden="true"
       />
-      {/* 풍선 자체 클릭으로 닫기 (재열림 방지 위해 이벤트 전파 차단) */}
       <div
         id="eg-bubble"
         style={style}
         className={`eg-bubble ${arrowSide}`}
         role="dialog"
         aria-modal="true"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
       >
         <div className="eg-bubble-head">
           <div className="eg-bubble-title" title={title || "상세"}>{title || "상세"}</div>
           <button
             className="eg-bubble-close"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
           >
             닫기
           </button>
@@ -137,7 +121,7 @@ const Bubble: React.FC<{
           color: #fff;
           box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
           overflow: hidden;
-          font-size: 14px; /* +2px */
+          font-size: 14px;
         }
         .eg-bubble-head{
           display:flex;align-items:center;justify-content:space-between;
@@ -153,7 +137,6 @@ const Bubble: React.FC<{
         .eg-bubble-body{
           padding:8px;line-height:1.5;white-space:pre-wrap;overflow:auto;height:calc(100% - 34px);
         }
-        /* 화살표 */
         .eg-bubble.right::after,.eg-bubble.left::after{
           content:"";position:absolute;top:50%;transform:translateY(-50%);
           width:0;height:0;border:8px solid transparent;
@@ -168,12 +151,12 @@ const Bubble: React.FC<{
 /* ---------- 페이지 ---------- */
 export default function LedgerPage() {
   const HEADER_BLUE = "#1739f7"; // 로그인 버튼과 동일 파랑
+  const TOPBAR_H = 72;           // 상단 고정 바 높이(px)
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // 말풍선 상태(행 ID로 토글 판별)
   const [bubble, setBubble] = useState<{
     open: boolean;
     title: string;
@@ -249,89 +232,131 @@ export default function LedgerPage() {
   const isDepositRow = (r: Row) => (r.deposit ?? 0) > 0 && (r.amount ?? 0) === 0;
 
   return (
-    <div className="wrap p-4 md:p-6 text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
-      {/* 전체 +2px → 기본 16px 기준 18px */}
-      <h1 className="text-[26px] md:text-[36px] font-extrabold mb-3">내 거래 내역 (최근 3개월)</h1>
+    <div className="wrap text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
+      {/* ✅ 상단 고정 Topbar (제목 + 기간) */}
+      <div
+        className="ledger-topbar"
+        style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0,
+          height: TOPBAR_H,
+          zIndex: 1200,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          background: "#0b0d21",
+          borderBottom: "1px solid rgba(255,255,255,.22)",
+        }}
+      >
+        <div>
+          <div className="text-[26px] md:text-[28px] font-extrabold leading-none">
+            내 거래 내역 (최근 3개월)
+          </div>
+          <div className="text-white/80 text-[14px] mt-1">
+            <span className="mr-2">{loginName || "고객"} 님,</span>
+            기간: <span className="font-semibold">{ymd(date_from)}</span> ~{" "}
+            <span className="font-semibold">{ymd(date_to)}</span>
+          </div>
+        </div>
 
-      <div className="mb-3 text-white/80" style={{ fontSize: 18 }}>
-        <span className="mr-2">{loginName || "고객"} 님,</span>
-        기간: <span className="font-semibold">{ymd(date_from)}</span> ~{" "}
-        <span className="font-semibold">{ymd(date_to)}</span>
+        {/* 오른쪽 상단 고정 버튼 */}
+        <Link
+          href="/dashboard"
+          className="no-underline"
+          style={{
+            background: "#1739f7",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: 10,
+            fontWeight: 800,
+            boxShadow: "0 6px 16px rgba(0,0,0,.35)",
+            border: "1px solid rgba(255,255,255,.25)",
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#0e2fe9")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#1739f7")}
+        >
+          대시보드로
+        </Link>
       </div>
 
-      {/* 내부 스크롤 영역 + Sticky Header */}
-      <div
-        className="relative overflow-auto rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]"
-        style={{ maxHeight: "75vh" }}
-      >
-        <table className="ledger w-full leading-tight" style={{ fontSize: 16 /* 기존 14 → +2 */ }}>
-          <thead className="sticky-head">
-            <tr>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }} className="col-date">일자</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }} className="col-name">품명</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }} className="col-qty">수량</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }}>단가</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }}>공급가</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }}>입금액</th>
-              <th style={{ background: HEADER_BLUE, color: "#fff" }}>잔액</th>
-            </tr>
-          </thead>
+      {/* Topbar 공간만큼 아래로 밀어주기 */}
+      <div style={{ paddingTop: TOPBAR_H + 12, paddingLeft: 16, paddingRight: 16, paddingBottom: 24 }}>
+        {/* 내부 스크롤 영역 + Sticky Header */}
+        <div
+          className="relative overflow-auto rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]"
+          style={{ maxHeight: `calc(100vh - ${TOPBAR_H + 24}px)` }}
+        >
+          <table className="ledger w-full leading-tight" style={{ fontSize: 16 }}>
+            <thead className="sticky-head">
+              <tr>
+                <th style={{ background: "#1739f7", color: "#fff" }} className="col-date">일자</th>
+                <th style={{ background: "#1739f7", color: "#fff" }} className="col-name">품명</th>
+                <th style={{ background: "#1739f7", color: "#fff" }} className="col-qty">수량</th>
+                <th style={{ background: "#1739f7", color: "#fff" }}>단가</th>
+                <th style={{ background: "#1739f7", color: "#fff" }}>공급가</th>
+                <th style={{ background: "#1739f7", color: "#fff" }}>입금액</th>
+                <th style={{ background: "#1739f7", color: "#fff" }}>잔액</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            {loading ? (
-              <tr><td className="py-3" colSpan={7}>불러오는 중…</td></tr>
-            ) : err ? (
-              <tr><td className="py-3 text-red-300" colSpan={7}>{err}</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td className="py-5 text-white/80" colSpan={7}>표시할 내역이 없습니다.</td></tr>
-            ) : (
-              rows.map((r, i) => {
-                const shortName = trim7(r.item_name || "");
-                const needInfo = (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
-                const rowId = `${r.tx_date}-${r.item_name}-${i}`;
+            <tbody>
+              {loading ? (
+                <tr><td className="py-3" colSpan={7}>불러오는 중…</td></tr>
+              ) : err ? (
+                <tr><td className="py-3 text-red-300" colSpan={7}>{err}</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td className="py-5 text-white/80" colSpan={7}>표시할 내역이 없습니다.</td></tr>
+              ) : (
+                rows.map((r, i) => {
+                  const shortName = trim7(r.item_name || "");
+                  const needInfo =
+                    (r.item_name?.length || 0) > 7 || (r.memo && r.memo.trim().length > 0);
+                  const rowId = `${r.tx_date}-${r.item_name}-${i}`;
 
-                return (
-                  <tr key={rowId}>
-                    <td className="col-date">{r.tx_date?.slice(5)}</td>
-                    <td className="col-name">
-                      <div className="inline-flex items-center justify-center gap-1 max-w-full">
-                        <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
-                        {needInfo && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation(); // 열자마자 배경/풍선 클릭 핸들러와 충돌 방지
-                              // 같은 행 i를 다시 누르면 닫기(토글)
-                              if (bubble.open && bubble.rowId === rowId) {
-                                setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null });
-                                return;
-                              }
-                              setBubble({
-                                open: true,
-                                title: r.item_name || "",
-                                content: (r.memo && r.memo.trim()) || r.item_name || "",
-                                anchorEl: e.currentTarget,
-                                rowId,
-                              });
-                            }}
-                            className="ml-0.5 shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white text-[13px] hover:bg-white hover:text-[#0b0d21] transition"
-                            title="상세 보기" aria-label="상세 보기"
-                          >i</button>
-                        )}
-                      </div>
-                    </td>
+                  return (
+                    <tr key={rowId}>
+                      <td className="col-date">{r.tx_date?.slice(5)}</td>
+                      <td className="col-name">
+                        <div className="inline-flex items-center justify-center gap-1 max-w-full">
+                          <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
+                          {needInfo && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (bubble.open && bubble.rowId === rowId) {
+                                  setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null });
+                                  return;
+                                }
+                                setBubble({
+                                  open: true,
+                                  title: r.item_name || "",
+                                  content: (r.memo && r.memo.trim()) || r.item_name || "",
+                                  anchorEl: e.currentTarget,
+                                  rowId,
+                                });
+                              }}
+                              className="ml-0.5 shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white text-[13px] hover:bg-white hover:text-[#0b0d21] transition"
+                              title="상세 보기" aria-label="상세 보기"
+                            >i</button>
+                          )}
+                        </div>
+                      </td>
 
-                    <td className="col-qty">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
-                    <td>{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
-                    <td>{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
-                    <td>{fmt(r.deposit)}</td>
-                    <td>{fmt(r.curr_balance)}</td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                      <td className="col-qty">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
+                      <td>{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
+                      <td>{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
+                      <td>{fmt(r.deposit)}</td>
+                      <td>{fmt(r.curr_balance)}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {bubble.open && (
@@ -339,45 +364,50 @@ export default function LedgerPage() {
           anchorEl={bubble.anchorEl}
           title={bubble.title}
           content={bubble.content}
-          onClose={() =>
-            setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null })
-          }
+          onClose={() => setBubble({ open: false, title: "", content: "", anchorEl: null, rowId: null })}
         />
       )}
 
-      {/* ✅ 스타일 */}
       <style jsx>{`
         .ledger{
-          border-collapse: collapse;
+          /* ✅ sticky 헤더 호환을 위해 collapse → separate */
+          border-collapse: separate;
+          border-spacing: 0;
           width: 100%;
           table-layout: auto;
-          border: 1px solid #ffffff;               /* 외곽선 선명 */
+          border: 1px solid #ffffff;
           text-align: center;
           border-radius: 12px; overflow: hidden;
         }
 
-        /* Sticky Header */
-        .sticky-head th{
+        /* ✅ Sticky Header 강화 */
+        .sticky-head{
           position: sticky;
           top: 0;
-          z-index: 10;
+          z-index: 49; /* 헤더 행 */
+        }
+        .sticky-head th{
+          position: sticky;
+          top: 0;            /* 스크롤해도 내부 상단에 고정 */
+          z-index: 50;       /* 셀을 더 위로 */
           box-shadow: 0 2px 0 rgba(255,255,255,.35);
+          background-clip: padding-box;
         }
 
         thead th{
           font-weight: 800;
           letter-spacing: .02em;
-          border-bottom: 1px solid #ffffff;        /* 헤더 하단만 선명 */
+          border-bottom: 1px solid #ffffff;
           text-shadow: 0 1px 0 rgba(0,0,0,.25);
         }
 
         thead th, tbody td{
-          padding-block: 10px;  /* +2px */
-          padding-inline: 1.2ch; /* +약간 */
+          padding-block: 10px;
+          padding-inline: 1.2ch;
           white-space: nowrap;
           vertical-align: middle;
-          border-right: 1px solid rgba(255,255,255,.35);  /* 내부 수직선: 반투명 */
-          border-bottom: 1px solid rgba(255,255,255,.3);  /* 내부 수평선: 반투명 */
+          border-right: 1px solid rgba(255,255,255,.35);
+          border-bottom: 1px solid rgba(255,255,255,.3);
         }
         thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
         tbody tr:last-child td{ border-bottom: none; }
@@ -391,9 +421,9 @@ export default function LedgerPage() {
         .col-name { min-width: 320px; }
         .col-qty  { min-width: 84px; }
 
-        /* 📱 모바일 */
+        /* 모바일 최적화 */
         @media (max-width: 480px) {
-          .ledger { font-size: 15px; } /* 13→15 (+2px) */
+          .ledger { font-size: 15px; }
           thead th, tbody td { padding-block: 8px; padding-inline: .8ch; }
           .col-date { width: 22vw; min-width: 60px; }
           .col-name { width: 56vw; min-width: 0; }
