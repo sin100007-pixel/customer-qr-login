@@ -150,8 +150,9 @@ const Bubble: React.FC<{
 
 /* ---------- 페이지 ---------- */
 export default function LedgerPage() {
-  const HEADER_BLUE = "#1739f7"; // 로그인 버튼과 동일 파랑
-  const TOPBAR_H = 72;           // 상단 고정 바 높이(px)
+  const BTN_BLUE = "#1739f7";
+  const TOPBAR_H = 64;   // 상단바 높이
+  const HDR_H = 44;      // 헤더바 높이
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,14 +234,14 @@ export default function LedgerPage() {
 
   return (
     <div className="wrap text-white" style={{ background: "#0b0d21", fontSize: 18 }}>
-      {/* ✅ 상단 고정 Topbar (제목 + 기간) */}
+      {/* ✅ 상단 Topbar — 인앱 호환을 위해 sticky */}
       <div
-        className="ledger-topbar"
+        className="topbar"
         style={{
-          position: "fixed",
-          top: 0, left: 0, right: 0,
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
           height: TOPBAR_H,
-          zIndex: 1200,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -259,55 +260,81 @@ export default function LedgerPage() {
             <span className="font-semibold">{ymd(date_to)}</span>
           </div>
         </div>
-
-        {/* 오른쪽 상단 고정 버튼 */}
         <Link
           href="/dashboard"
-          className="no-underline"
+          className="no-underline inline-flex items-center justify-center"
           style={{
-            background: "#1739f7",
+            background: BTN_BLUE,
             color: "#fff",
             padding: "10px 14px",
             borderRadius: 10,
             fontWeight: 800,
-            boxShadow: "0 6px 16px rgba(0,0,0,.35)",
             border: "1px solid rgba(255,255,255,.25)",
             whiteSpace: "nowrap",
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#0e2fe9")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.background = "#1739f7")}
         >
           대시보드로
         </Link>
       </div>
 
-      {/* Topbar 공간만큼 아래로 밀어주기 */}
-      <div style={{ paddingTop: TOPBAR_H + 12, paddingLeft: 16, paddingRight: 16, paddingBottom: 24 }}>
-        {/* 내부 스크롤 영역 + Sticky Header */}
+      {/* ✅ 내부 스크롤 컨테이너 */}
+      <div
+        className="scroller"
+        style={{
+          height: `calc(100vh - ${TOPBAR_H}px)`,
+          overflow: "auto",
+          WebkitOverflowScrolling: "touch",
+          padding: "0 16px 24px",
+        }}
+      >
+        {/* ✅ 복제 헤더(Grid) — 스크롤해도 항상 상단 고정 */}
         <div
-          className="relative overflow-auto rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]"
-          style={{ maxHeight: `calc(100vh - ${TOPBAR_H + 24}px)` }}
+          className="hdr-grid"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 800,
+            display: "grid",
+            gridTemplateColumns: "12% 32% 10% 12% 12% 10% 12%",
+            height: HDR_H,
+            alignItems: "center",
+            border: "1px solid #fff",
+            borderBottom: "1px solid #fff",
+            background: BTN_BLUE,
+            color: "#fff",
+            fontWeight: 800,
+            padding: "0 8px",
+          }}
         >
+          <div className="text-center">일자</div>
+          <div className="text-center">품명</div>
+          <div className="text-center">수량</div>
+          <div className="text-center">단가</div>
+          <div className="text-center">공급가</div>
+          <div className="text-center">입금액</div>
+          <div className="text-center">잔액</div>
+        </div>
+
+        {/* ✅ 테이블 본문만 스크롤 */}
+        <div className="relative rounded-xl shadow-[0_6px_24px_rgba(0,0,0,.35)]">
           <table className="ledger w-full leading-tight" style={{ fontSize: 16 }}>
-            <thead className="sticky-head">
-              <tr>
-                <th style={{ background: "#1739f7", color: "#fff" }} className="col-date">일자</th>
-                <th style={{ background: "#1739f7", color: "#fff" }} className="col-name">품명</th>
-                <th style={{ background: "#1739f7", color: "#fff" }} className="col-qty">수량</th>
-                <th style={{ background: "#1739f7", color: "#fff" }}>단가</th>
-                <th style={{ background: "#1739f7", color: "#fff" }}>공급가</th>
-                <th style={{ background: "#1739f7", color: "#fff" }}>입금액</th>
-                <th style={{ background: "#1739f7", color: "#fff" }}>잔액</th>
-              </tr>
-            </thead>
+            <colgroup>
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "32%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
 
             <tbody>
               {loading ? (
-                <tr><td className="py-3" colSpan={7}>불러오는 중…</td></tr>
+                <tr><td className="py-3 text-center" colSpan={7}>불러오는 중…</td></tr>
               ) : err ? (
-                <tr><td className="py-3 text-red-300" colSpan={7}>{err}</td></tr>
+                <tr><td className="py-3 text-center text-red-300" colSpan={7}>{err}</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="py-5 text-white/80" colSpan={7}>표시할 내역이 없습니다.</td></tr>
+                <tr><td className="py-5 text-center text-white/80" colSpan={7}>표시할 내역이 없습니다.</td></tr>
               ) : (
                 rows.map((r, i) => {
                   const shortName = trim7(r.item_name || "");
@@ -317,8 +344,8 @@ export default function LedgerPage() {
 
                   return (
                     <tr key={rowId}>
-                      <td className="col-date">{r.tx_date?.slice(5)}</td>
-                      <td className="col-name">
+                      <td className="col-date text-center">{r.tx_date?.slice(5)}</td>
+                      <td className="col-name text-center">
                         <div className="inline-flex items-center justify-center gap-1 max-w-full">
                           <span className="truncate max-w-[60vw] md:max-w-[260px]">{shortName}</span>
                           {needInfo && (
@@ -345,11 +372,11 @@ export default function LedgerPage() {
                         </div>
                       </td>
 
-                      <td className="col-qty">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
-                      <td>{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
-                      <td>{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
-                      <td>{fmt(r.deposit)}</td>
-                      <td>{fmt(r.curr_balance)}</td>
+                      <td className="col-qty text-center">{!isDepositRow(r) ? (r.qty ?? "") : ""}</td>
+                      <td className="text-center">{!isDepositRow(r) ? fmt(r.unit_price) : ""}</td>
+                      <td className="text-center">{!isDepositRow(r) ? fmt(r.amount) : ""}</td>
+                      <td className="text-center">{fmt(r.deposit)}</td>
+                      <td className="text-center">{fmt(r.curr_balance)}</td>
                     </tr>
                   );
                 })
@@ -370,66 +397,36 @@ export default function LedgerPage() {
 
       <style jsx>{`
         .ledger{
-          /* ✅ sticky 헤더 호환을 위해 collapse → separate */
-          border-collapse: separate;
+          border-collapse: separate;   /* sticky 헤더 충돌 방지 */
           border-spacing: 0;
           width: 100%;
-          table-layout: auto;
+          table-layout: fixed;         /* colgroup 퍼센트 폭 반영 */
           border: 1px solid #ffffff;
           text-align: center;
           border-radius: 12px; overflow: hidden;
         }
 
-        /* ✅ Sticky Header 강화 */
-        .sticky-head{
-          position: sticky;
-          top: 0;
-          z-index: 49; /* 헤더 행 */
-        }
-        .sticky-head th{
-          position: sticky;
-          top: 0;            /* 스크롤해도 내부 상단에 고정 */
-          z-index: 50;       /* 셀을 더 위로 */
-          box-shadow: 0 2px 0 rgba(255,255,255,.35);
-          background-clip: padding-box;
-        }
-
-        thead th{
-          font-weight: 800;
-          letter-spacing: .02em;
-          border-bottom: 1px solid #ffffff;
-          text-shadow: 0 1px 0 rgba(0,0,0,.25);
-        }
-
-        thead th, tbody td{
+        tbody td{
           padding-block: 10px;
           padding-inline: 1.2ch;
           white-space: nowrap;
           vertical-align: middle;
           border-right: 1px solid rgba(255,255,255,.35);
           border-bottom: 1px solid rgba(255,255,255,.3);
+          background: #0b0d21;
+          color: #fff;
         }
-        thead tr th:last-child, tbody tr td:last-child{ border-right: none; }
-        tbody tr:last-child td{ border-bottom: none; }
-
-        /* 본문 줄무늬 */
-        tbody tr td{ background: #0b0d21; color: #fff; }
         tbody tr:nth-child(even) td{ background: #101536; }
-
-        /* 컬럼 폭 */
-        .col-date { min-width: 96px; }
-        .col-name { min-width: 320px; }
-        .col-qty  { min-width: 84px; }
+        tbody tr td:last-child{ border-right: none; }
+        tbody tr:last-child td{ border-bottom: none; }
 
         /* 모바일 최적화 */
         @media (max-width: 480px) {
           .ledger { font-size: 15px; }
-          thead th, tbody td { padding-block: 8px; padding-inline: .8ch; }
-          .col-date { width: 22vw; min-width: 60px; }
-          .col-name { width: 56vw; min-width: 0; }
-          .col-qty  { width: 22vw; min-width: 54px; }
-          .col-name .truncate { max-width: 52vw; }
+          tbody td { padding-block: 8px; padding-inline: .8ch; }
         }
+
+        /* 말풍선 스타일은 컴포넌트 내부에 정의됨 */
       `}</style>
     </div>
   );
