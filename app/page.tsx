@@ -215,7 +215,6 @@ export default function Page() {
 
           {/* 앱 설치 버튼 */}
           <InstallButton
-            asChild
             style={{ ...buttonStyle, marginTop: 8 }}
             onMouseEnter={(e) =>
               ((e.currentTarget as HTMLButtonElement).style.background = BTN_BLUE_HOVER)
