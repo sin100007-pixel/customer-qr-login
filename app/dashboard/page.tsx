@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   const user = await prisma.user.findFirst({ where: { name } });
   if (!user) redirect("/");
 
-  // 공통 버튼 스타일 (로그아웃/ledger/설치/카카오 동일)
+  // 공통 버튼 스타일 (ledger/설치/카카오)
   const btnStyle: React.CSSProperties = {
     display: "block",
     width: "100%",
@@ -30,6 +30,23 @@ export default async function DashboardPage() {
     color: "#ffffff",
     fontWeight: 700,
     textAlign: "center",
+    cursor: "pointer",
+  };
+
+  // 푸터(회사정보)와 동일 톤/크기의 링크형 로그아웃 스타일
+  const footerTextStyle: React.CSSProperties = {
+    fontSize: 12,
+    lineHeight: "18px",
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+  };
+  const logoutLinkStyle: React.CSSProperties = {
+    ...footerTextStyle,
+    textDecoration: "underline",
+    background: "none",
+    border: "none",
+    padding: 0,
+    marginTop: 8,
     cursor: "pointer",
   };
 
@@ -65,7 +82,9 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>{name}님의 QR</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>
+        {name}님의 QR
+      </h1>
 
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ width: 260, borderRadius: 12, overflow: "hidden", background: "#111" }}>
@@ -77,14 +96,9 @@ export default async function DashboardPage() {
       </div>
 
       <section style={{ marginTop: 24 }}>
-        {/* 로그아웃 */}
-        <form action="/api/logout" method="POST">
-          <button type="submit" style={btnStyle}>
-            로그아웃
-          </button>
-        </form>
+        {/* ⬇️ 기존 '로그아웃' 버튼은 제거했습니다 */}
 
-        {/* ✅ /ledger 이동 버튼 — 로그아웃 바로 아래, 동일 스타일 */}
+        {/* /ledger 이동 버튼 */}
         <a href="/ledger" style={{ textDecoration: "none" }}>
           <button type="button" style={btnStyle}>
             거래내역 보기(공사중)
@@ -95,7 +109,12 @@ export default async function DashboardPage() {
         <InstallButton style={btnStyle}>앱 설치</InstallButton>
 
         {/* 카카오 채팅문의 */}
-        <a href="http://pf.kakao.com/_IxgdJj/chat" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+        <a
+          href="http://pf.kakao.com/_IxgdJj/chat"
+          target="_blank"
+          rel="noreferrer"
+          style={{ textDecoration: "none" }}
+        >
           <button type="button" style={btnStyle}>
             카카오 채팅문의
           </button>
@@ -110,16 +129,22 @@ export default async function DashboardPage() {
           marginTop: 24,
           paddingTop: 8,
           borderTop: "1px solid rgba(255,255,255,0.08)",
-          fontSize: 12,
-          lineHeight: "18px",
-          color: "rgba(255,255,255,0.6)",
-          textAlign: "center",
+          ...footerTextStyle,
         }}
       >
         <div>이고세(주)</div>
         <div>경기도 안산시 상록구 안산천서로 237</div>
         <div>Tel. 031-486-6882</div>
       </div>
+
+      {/* ⬇️ 푸터 '아래'에 위치한 링크형 로그아웃 */}
+      <form action="/api/logout" method="POST" style={{ marginTop: 4 }}>
+        <p style={{ textAlign: "center", margin: 0 }}>
+          <button type="submit" style={logoutLinkStyle}>
+            로그아웃
+          </button>
+        </p>
+      </form>
     </main>
   );
 }
