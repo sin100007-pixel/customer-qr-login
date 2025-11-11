@@ -337,6 +337,22 @@ export default function LedgerPage() {
           기간: <span className="strong">{ymd(date_from)}</span> ~{" "}
           <span className="strong">{ymd(date_to)}</span>
         </div>
+
+        {/* ✅ 요청하신 안내문(빨간색) */}
+        <div className="mt-2 px-1">
+          <ul className="space-y-1 text-[11px] md:text-xs leading-5 font-medium text-red-400">
+            <li>* 금일 발주 건은 차일 오후12시에 반영됩니다.</li>
+            <li>** 누락, 중복, 오기입이 있을 수 있습니다. 대략으로만 봐주세요. </li>
+            <li>
+              *** 최근거래의 대략을 보여주므로 정확한 내용은 이고세로 직접 연락주세요.
+              Tel.031-486-6882
+            </li>
+            <li>
+              **** ⓘ버튼을 누르면 축약된 품명이 모두 보이게 됩니다. 끌때는 풍선을 누르거나 배경을
+              눌러주세요.
+            </li>
+          </ul>
+        </div>
       </div>
 
       {/* 내부 스크롤 뷰포트 */}
