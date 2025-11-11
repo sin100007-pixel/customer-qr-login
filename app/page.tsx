@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import ProductPreview from "./product-preview";
 import InstallButton from "./components/InstallButton";
@@ -17,6 +17,24 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // 자동 로그인 안내 풍선
+  const [autoLogging, setAutoLogging] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const justLoggedOut = sessionStorage.getItem("justLoggedOut") === "1";
+    if (justLoggedOut) return;
+    const hasCookie = document.cookie.includes("session_user=");
+    if (hasCookie) return;
+    try {
+      const stored = localStorage.getItem("session_user");
+      if (stored) {
+        setAutoLogging(true);
+        const t = setTimeout(() => setAutoLogging(false), 12000);
+        return () => clearTimeout(t);
+      }
+    } catch {}
+  }, []);
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -28,13 +46,9 @@ export default function Page() {
         credentials: "include",
         body: JSON.stringify({ name, password, remember }),
       });
-
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.message || "서버 오류가 발생했습니다.");
-
-      try {
-        localStorage.setItem("session_user", encodeURIComponent(name));
-      } catch {}
+      try { localStorage.setItem("session_user", encodeURIComponent(name)); } catch {}
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "서버 오류가 발생했습니다.");
@@ -66,16 +80,24 @@ export default function Page() {
     background: BTN_BLUE,
     color: "#ffffff",
     fontWeight: 700,
-    fontSize: 16,
-    cursor: "pointer",
+    fontSize: 16,           // 로그인 버튼 글자 크기
+    lineHeight: "20px",
     textAlign: "center",
-    textDecoration: "none",
+    cursor: "pointer",
   };
 
   return (
-    <div style={{ background: BG_DARK, minHeight: "100vh" }}>
-      <div style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
-        <header style={{ width: "100%", marginBottom: 16 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: BG_DARK,
+        color: "#fff",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 560, padding: 16 }}>
+        <header style={{ margin: "6px 0 14px" }}>
           <div
             style={{
               position: "relative",
@@ -100,7 +122,7 @@ export default function Page() {
           런던마켓으로 로그인
         </h1>
 
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} style={{ position: "relative" }}>
           <label style={{ display: "block", marginTop: 6, marginBottom: 4, color: "#e5e7eb" }}>
             이름
           </label>
@@ -123,6 +145,18 @@ export default function Page() {
             style={fieldStyle}
           />
 
+          {/* 자동 로그인 중 풍선 */}
+          {autoLogging && (
+            <>
+              <div className="login-bubble" role="status" aria-live="polite">
+                <div className="bubble-head">
+                  <span className="dot" /> 자동 로그인 중
+                </div>
+                <div className="bubble-body">로그인중입니다. 잠시만 기다려주세요.</div>
+              </div>
+            </>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -136,23 +170,52 @@ export default function Page() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
+              id="rememberMe"
             />
-            <span>로그인 유지</span>
+            <label htmlFor="rememberMe">로그인 유지</label>
           </div>
 
+          {/* 로그인 버튼 */}
           <button
-            disabled={loading}
             type="submit"
-            style={buttonStyle}
-            onMouseEnter={(e) => (e.currentTarget.style.background = BTN_BLUE_HOVER)}
-            onMouseLeave={(e) => (e.currentTarget.style.background = BTN_BLUE)}
+            disabled={loading}
+            style={{
+              ...buttonStyle,
+              opacity: loading ? 0.7 : 1,
+              pointerEvents: loading ? "none" : "auto",
+            }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BLUE_HOVER)
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = BTN_BLUE)
+            }
           >
-            {loading ? "로그인 중..." : "로그인"}
+            {loading ? "로그인 중…" : "로그인"}
           </button>
 
-          {error && <p style={{ color: "#fca5a5", margin: "6px 0 10px" }}>{error}</p>}
+          {/* 에러 메시지 */}
+          {error && (
+            <div
+              style={{
+                marginTop: 8,
+                marginBottom: 8,
+                background: "rgba(239,68,68,.15)",
+                border: "1px solid rgba(239,68,68,.5)",
+                color: "#fecaca",
+                padding: 10,
+                borderRadius: 8,
+                textAlign: "center",
+                fontSize: 14,
+              }}
+            >
+              {error}
+            </div>
+          )}
 
+          {/* 앱 설치 버튼 */}
           <InstallButton
+            asChild
             style={{ ...buttonStyle, marginTop: 8 }}
             onMouseEnter={(e) =>
               ((e.currentTarget as HTMLButtonElement).style.background = BTN_BLUE_HOVER)
@@ -164,11 +227,19 @@ export default function Page() {
             앱 설치
           </InstallButton>
 
+          {/* ✅ 카카오 채팅문의 — 로그인 버튼과 동일 스타일, 밑줄 제거 */}
           <a
             href="http://pf.kakao.com/_IxgdJj/chat"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ ...buttonStyle, marginTop: 8 }}
+            style={{
+              ...buttonStyle,
+              marginTop: 8,
+              textDecoration: "none", // 밑줄 제거
+              display: "block",
+              textAlign: "center",
+              color: "#ffffff",
+            }}
             onMouseEnter={(e) =>
               ((e.currentTarget as HTMLAnchorElement).style.background = BTN_BLUE_HOVER)
             }
@@ -179,30 +250,87 @@ export default function Page() {
             카카오 채팅문의
           </a>
 
-          <div style={{ marginTop: 12 }}>
-            <ProductPreview showToggle />
-          </div>
-        
-        {/* 회사 정보 푸터 */}
-        <div
-          style={{
-            marginTop: 24,
-            paddingTop: 8,
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 12,
-            lineHeight: "18px",
-            color: "rgba(255,255,255,0.6)",
-            textAlign: "center",
-          }}
-        >
-          <div>이고세(주)</div>
-          <div>경기도 안산시 상록구 안산천서로 237</div>
-          <div>Tel. 031-486-6882</div>
-        </div>
+          {/* 판매중인 상품 보기(컴포넌트 내부에서 버튼 렌더) */}
+          <ProductPreview />
 
-      </form>
+          {/* 회사 정보 */}
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 10,
+              borderTop: "1px dashed rgba(255,255,255,.25)",
+              color: "rgba(255,255,255,.8)",
+              fontSize: 12,
+              textAlign: "center",
+            }}
+          >
+            <div>이고세(주)</div>
+            <div>경기도 안산시 상록구 안산천서로 237</div>
+            <div>Tel. 031-486-6882</div>
+          </div>
+        </form>
       </div>
+
+      {/* 로그인중 풍선 스타일 */}
+      <style jsx>{`
+        .login-bubble {
+          position: absolute;
+          right: -4px;
+          top: 86px;
+          width: 280px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.85);
+          background: linear-gradient(180deg, #1a1d3a 0%, #0f1129 100%);
+          color: #fff;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+          overflow: hidden;
+          z-index: 20;
+        }
+        .login-bubble::after {
+          content: "";
+          position: absolute;
+          right: 18px;
+          top: -16px;
+          border: 8px solid transparent;
+          border-bottom-color: #1a1d3a;
+        }
+        .bubble-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+          background: rgba(255, 255, 255, 0.06);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+        .bubble-body {
+          padding: 10px;
+          line-height: 1.45;
+          font-size: 14px;
+        }
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #22c55e;
+          display: inline-block;
+          animation: blink 1.1s infinite;
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 1; }
+        }
+
+        @media (max-width: 480px) {
+          .login-bubble {
+            right: 0;
+            top: 78px;
+            width: calc(100% - 4px);
+          }
+          .login-bubble::after { right: 28px; }
+        }
+      `}</style>
     </div>
   );
 }
-
