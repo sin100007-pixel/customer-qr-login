@@ -100,7 +100,7 @@ const monoStyle: React.CSSProperties = {
 export default async function AdminDashboardPage() {
   const logs = await prisma.pageView.findMany({
     orderBy: { viewedAt: "desc" },
-    take: 300,
+    take: 400,
   });
 
   return (
