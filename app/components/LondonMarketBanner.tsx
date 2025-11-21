@@ -16,7 +16,7 @@ export default function LondonMarketBanner() {
       // 10번 클릭되면 /admin/dashboard 로 이동
       if (next >= 10) {
         router.push("/admin/dashboard");
-        return 0; // 이동 후 다시 0으로 리셋 (원하면 유지해도 됨)
+        return 0; // 이동 후 카운트 리셋
       }
 
       return next;
@@ -32,7 +32,11 @@ export default function LondonMarketBanner() {
         aspectRatio: "7 / 3",
         borderRadius: 12,
         overflow: "hidden",
-        cursor: "pointer", // 살짝만 힌트
+        cursor: "pointer",
+
+        // ✅ 모바일에서 파란 클릭 하이라이트 제거
+        WebkitTapHighlightColor: "transparent",
+        userSelect: "none",
       }}
     >
       <Image
