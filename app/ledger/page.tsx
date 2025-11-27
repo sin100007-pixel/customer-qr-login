@@ -354,10 +354,7 @@ export default function LedgerPage() {
               **** ⓘ버튼을 누르면 축약된 품명이 모두 보이게 됩니다. 끌때는 풍선을 누르거나 배경을
               눌러주세요.
             </li>
-          </ul>
-          {/* ✅ 계좌 안내 */}
-          <div className="mt-3 px-1 eg-bank"></div>
-          우리은행 1005-802-884869 이고세(주)
+          </ul> 
         </div>
       </div>
 
